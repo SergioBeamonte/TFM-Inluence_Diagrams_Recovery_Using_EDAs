@@ -1,0 +1,57 @@
+ALGORITMO EDA_Optimizacion_Parametros
+
+ENTRADAS:
+  N: Tamaño de la población (ej. 100)
+  T: Tasa de selección por truncamiento (ej. 0.3 -> nos quedamos con el 30% mejor)
+  G: Generaciones máximas a ejecutar
+
+1. INICIALIZACIÓN DEL MODELO BASE:
+   // El individuo ya no es un objeto complejo, es un vector matemático (array 1D) 
+   // que contiene todas las probabilidades y utilidades concatenadas.
+   Generar Poblacion_Actual de N vectores muestreando una Distribución Uniforme Inicial D_0.
+
+2. BUCLE EVOLUTIVO (Para t = 1 hasta G):
+   
+   // FASE A: EVALUACIÓN DIRECTA
+   PARA CADA vector_x EN Poblacion_Actual:
+       Inyectar vector_x en las matrices del Diagrama de Influencia.
+       vector_x.fitness = Evaluar_Diagrama(ShachterEngine) // Comparativa vs Reglas del Experto
+   FIN PARA
+   
+   // FASE B: SELECCIÓN POR TRUNCAMIENTO (Destrucción de los malos)
+   Ordenar Poblacion_Actual de mayor a menor fitness.
+   Poblacion_Elite = Seleccionar los primeros (N * T) vectores.
+   
+   // FASE C: APRENDIZAJE DEL MODELO (El núcleo del EDA)
+   // Se borra el concepto de individuo. Extraemos el comportamiento estadístico de la élite.
+   PARA CADA dimensión i (cada celda de las tablas del diagrama):
+       Calcular Media: \mu_i = media(Poblacion_Elite[:, i])
+       Calcular Varianza: \sigma_i^2 = varianza(Poblacion_Elite[:, i])
+   FIN PARA
+   
+   // Si se usa EGNA (Multivariante), en lugar de la varianza individual se calcula 
+   // la Matriz de Covarianza \Sigma para capturar cómo unas variables afectan a otras.
+   Construir Modelo_Probabilistico P_t(x) = \mathcal{N}(\mu, \Sigma)
+   
+   // FASE D: MUESTREO (Generación pura de la nueva población)
+   Poblacion_Actual = Vacia
+   
+   MIENTRAS tamaño(Poblacion_Actual) < N:
+       // Se genera un vector enteramente nuevo "tirando los dados" en la nueva Campana de Gauss
+       vector_nuevo = Muestrear_Desde( P_t(x) )
+       
+       // FASE E: REPARACIÓN MATEMÁTICA (Imprescindible)
+       // El EDA puede generar valores como 1.2 o -0.5 al usar distribuciones normales.
+       vector_nuevo.probabilidades = Normalizar_Bloques_Suman_1(vector_nuevo.probabilidades)
+       vector_nuevo.utilidades = Recortar_Limites(vector_nuevo.utilidades, min=0, max=10)
+       
+       SI Cumple_Restricciones_De_Monotonia(vector_nuevo):
+           Añadir vector_nuevo a Poblacion_Actual
+       SINO:
+           Descartar vector_nuevo // Penalización letal. Forzamos al EDA a muestrear de nuevo.
+           
+   FIN MIENTRAS
+
+3. FIN DEL BUCLE
+
+DEVOLVER El mejor vector histórico encontrado

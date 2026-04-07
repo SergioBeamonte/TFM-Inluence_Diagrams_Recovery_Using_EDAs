@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This file was created by ACADEMIC version of SMILE -->
+<smile version="1.0" id="bypass2" numsamples="1000" discsamples="10000">
+	<nodes>
+		<cpt id="HEARTDISEASE">
+			<state id="ABSENT" />
+			<state id="PRESENT" />
+			<probabilities>0.5 0.5</probabilities>
+		</cpt>
+		<cpt id="PAIN">
+			<state id="ABSENT" />
+			<state id="PRESENT" />
+			<parents>HEARTDISEASE</parents>
+			<probabilities>1 0 0.8450759091685427 0.1549240908314573</probabilities>
+		</cpt>
+		<cpt id="ANGIOGRAM">
+			<state id="NEGATIVE" />
+			<state id="POSITIVE" />
+			<parents>HEARTDISEASE</parents>
+			<probabilities>1 0 0.6336983049203994 0.3663016950796006</probabilities>
+		</cpt>
+		<decision id="HEARTSURGERY">
+			<state id="NO" />
+			<state id="YES" />
+			<parents>PAIN ANGIOGRAM</parents>
+		</decision>
+		<cpt id="EARLYRESULTS">
+			<state id="CoRem" />
+			<state id="PaRem" />
+			<state id="NoChng" />
+			<state id="PrgrsvDisease" />
+			<parents>ANGIOGRAM HEARTSURGERY</parents>
+			<probabilities>0.7280134248257929 0.271986575174207 0 0 0.1667948920253679 0 0.6721010830925038 0.1611040248821282 0.5382703238374168 0 0.4617296761625831 0 0.3235424486867611 0.4094859075687663 0.2669716437444724 0</probabilities>
+		</cpt>
+		<decision id="HEARTPHARMA">
+			<state id="NO" />
+			<state id="YES" />
+			<parents>PAIN ANGIOGRAM EARLYRESULTS</parents>
+		</decision>
+		<cpt id="LIFEQ">
+			<state id="DEAD" />
+			<state id="LIVE2ALQ" />
+			<state id="LIVE2AHQ" />
+			<parents>HEARTDISEASE HEARTSURGERY</parents>
+			<probabilities>0.09622321127560808 0.3424040487788054 0.5613727399455865 0.9485823843082188 0 0.05141761569178113 0.4218953077478561 0.2807067078524583 0.2973979843996857 0.9622824258090581 0.0377175741909419 0</probabilities>
+		</cpt>
+		<cpt id="ECONOMICALC">
+			<state id="LOW" />
+			<state id="MEDIUM" />
+			<state id="HIGH" />
+			<parents>EARLYRESULTS HEARTSURGERY HEARTPHARMA</parents>
+			<probabilities>1 0 0 0.05607359460599485 0.5055499954567345 0.4383764099372707 0.2144655726824055 0.3722631323609369 0.4132712949566576 0 0.3612642894387582 0.6387357105612417 0.4111489672408603 0.4225440905011386 0.1663069422580012 0.3336945531902077 0.3691468100863898 0.2971586367234025 0.1873900707087351 0.05000466354437794 0.762605265746887 0.5773155945847418 0.1061752218480221 0.316509183567236 0.7594820155399705 0 0.2405179844600296 0.4770459930732697 0.3637253194266948 0.1592286875000356 0.09212156489646724 0.32543596101743 0.5824424740861027 0.2517703759253009 0.3525447789047074 0.3956848451699917 0.3747307394517052 0.6252692605482949 0 0 0.8454713525036608 0.1545286474963391 0 0.4501070885314244 0.5498929114685757 0.5199461027784551 0.3558193593028783 0.1242345379186666</probabilities>
+		</cpt>
+		<utility id="UTILITY">
+			<parents>LIFEQ ECONOMICALC</parents>
+			<utilities>6.596519265951439 3.203160810343297 0 1.891522194915305 2.422542937851531 10 10 10 0.4447574130997722</utilities>
+		</utility>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="SMILE_ACADEMIC 2.4.0@070aab1774fd" name="bypass2">
+			<node id="HEARTDISEASE">
+				<name>HEARTDISEASE</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>100 100 200 160</position>
+			</node>
+			<node id="PAIN">
+				<name>PAIN</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>250 100 350 160</position>
+			</node>
+			<node id="ANGIOGRAM">
+				<name>ANGIOGRAM</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>400 100 500 160</position>
+			</node>
+			<node id="HEARTSURGERY">
+				<name>HEARTSURGERY</name>
+				<interior color="ffcc99" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>550 100 650 160</position>
+			</node>
+			<node id="EARLYRESULTS">
+				<name>EARLYRESULTS</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>700 100 800 160</position>
+			</node>
+			<node id="HEARTPHARMA">
+				<name>HEARTPHARMA</name>
+				<interior color="ffcc99" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>100 250 200 310</position>
+			</node>
+			<node id="LIFEQ">
+				<name>LIFEQ</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>250 250 350 310</position>
+			</node>
+			<node id="ECONOMICALC">
+				<name>ECONOMICALC</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>400 250 500 310</position>
+			</node>
+			<node id="UTILITY">
+				<name>UTILITY</name>
+				<interior color="cc99ff" />
+				<outline color="000080" />
+				<font color="000000" name="MS Sans Serif" size="8" />
+				<position>550 250 650 310</position>
+			</node>
+		</genie>
+	</extensions>
+</smile>
