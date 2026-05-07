@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<smile version="1.0" id="Figure4_12" numsamples="1000" discsamples="10000">
+	<nodes>
+		<decision id="Accept2B">
+			<state id="Accept_2" />
+			<state id="Counter_5" />
+		</decision>
+		<cpt id="Texaco_Reaction">
+			<state id="Accept_5" />
+			<state id="Refuse" />
+			<state id="Counter_3" />
+			<probabilities>0.17 0.5 0.33</probabilities>
+		</cpt>
+		<decision id="Pennzoil_Reaction">
+			<state id="Refuse" />
+			<state id="Accept_3" />
+			<parents>Accept2B Texaco_Reaction</parents>
+		</decision>
+		<cpt id="Court_Decision">
+			<state id="High" />
+			<state id="Medium" />
+			<state id="Low" />
+			<probabilities>0.2 0.5 0.3</probabilities>
+		</cpt>
+		<utility id="Settlement">
+			<parents>Accept2B Texaco_Reaction Pennzoil_Reaction Court_Decision</parents>
+			<utilities>2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 5 5 5 5 5 5 10.3 5 0 10.3 5 0 10.3 5 0 3 3 3</utilities>
+		</utility>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="GeNIe 2.2.2626.2 1d3af2fc8bc8c80" name="Clemen Figure 4.12" faultnameformat="nodestate">
+			<comment>Figure 4.12: Influence diagram for Liedtke&apos;s decision (this diagram is also pictured in a decision tree form in Figure 4.2; intermediate stages of decision-tree solutions are in Figures 4.5 through 4.7; intermediate stages of influence diagram solutions are in Figures 4.13 through 4.17).\nReference:\nRobert T. Clemen, Making Hard Decisions: An Introduction to Decision Analysis, Second Edition. Duxbury Press, 1996.</comment>
+			<node id="Accept2B">
+				<name>Accept $2 Billion?</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>83 22 156 66</position>
+			</node>
+			<node id="Texaco_Reaction">
+				<name>Texaco Reaction</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>229 22 315 75</position>
+			</node>
+			<node id="Pennzoil_Reaction">
+				<name>Pennzoil Reaction</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>84 166 152 210</position>
+			</node>
+			<node id="Court_Decision">
+				<name>Final Court Decision</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>327 86 432 143</position>
+			</node>
+			<node id="Settlement">
+				<name>Settlement Amount</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>220 162 327 207</position>
+			</node>
+			<textbox>
+				<caption>Figure 4.12: Influence diagram for Liedtke&apos;s decision (this diagram is also pictured in a decision tree form in Figure 4.2; intermediate stages of decision-tree solutions are in Figures 4.5 through 4.7; intermediate stages of influence diagram solutions are in Figures 4.13 through 4.17).\nRobert T. Clemen, Making Hard Decisions: An Introduction to Decision Analysis, Second Edition. Duxbury Press, 1996.</caption>
+				<font color="000080" name="Arial" size="12" bold="true" />
+				<position>34 241 497 374</position>
+			</textbox>
+		</genie>
+	</extensions>
+</smile>

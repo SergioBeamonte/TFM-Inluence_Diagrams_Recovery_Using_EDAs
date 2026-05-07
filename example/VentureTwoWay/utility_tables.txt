@@ -1,0 +1,41 @@
+TABLAS DE UTILIDAD ESPERADA POR NODO DE DECISIÓN
+============================================================
+
+--- NODO DE DECISIÓN: INVEST ---
+  # | SensitivityP   ||       Invest DoNotInvest
+------------------------------------------------
+  1 | Low            ||   -4300.0000*   500.0000
+  2 | Nominal        ||   -3600.0000*   500.0000
+  3 | High           ||   -2550.0000*   500.0000
+
+============================================================
+
+--- NODO DE DECISIÓN: SENSITIVITYP ---
+  # | SensitivityS   ||          Low     Nominal        High
+------------------------------------------------------------
+  1 | Low            || *   500.0000    500.0000    500.0000
+  2 | Nominal        || *   500.0000    500.0000    500.0000
+  3 | High           ||     500.0000    500.0000*  2000.0000
+
+============================================================
+
+--- NODO DE DECISIÓN: SENSITIVITYS ---
+[Sin nodos padre / Decisión incondicional]
+
+            Low        Nominal           High
+---------------------------------------------
+       500.0000       500.0000      2000.0000
+
+============================================================
+EXTREMOS GLOBALES ABSOLUTOS DE TODA LA RED
+============================================================
+
+[+] MÁXIMO ABSOLUTO: 2000.0000
+    - Nodo de Decisión: SensitivityP (Acción: High)
+    - Nodos Condicionantes (Padres):
+        * SensitivityS: High
+
+[-] MÍNIMO ABSOLUTO: -4300.0000
+    - Nodo de Decisión: Invest (Acción: Invest)
+    - Nodos Condicionantes (Padres):
+        * SensitivityP: Low

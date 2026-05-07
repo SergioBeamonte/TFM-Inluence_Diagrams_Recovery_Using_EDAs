@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This network was created in GeNIe Academic, which can be used for academic teaching and research purposes only -->
+<smile version="1.0" id="VentureID2S" numsamples="1000" discsamples="10000">
+	<nodes>
+		<decision id="SensitivityS">
+			<state id="Low" />
+			<state id="Nominal" />
+			<state id="High" />
+		</decision>
+		<decision id="SensitivityP">
+			<state id="Low" />
+			<state id="Nominal" />
+			<state id="High" />
+			<parents>SensitivityS</parents>
+		</decision>
+		<cpt id="Success">
+			<state id="Success" />
+			<state id="Failure" />
+			<parents>SensitivityP</parents>
+			<probabilities>0.1 0.9 0.2 0.8 0.35 0.65</probabilities>
+		</cpt>
+		<cpt id="Forecast">
+			<state id="Good" />
+			<state id="Moderate" />
+			<state id="Poor" />
+			<parents>Success</parents>
+			<probabilities>0.4 0.4 0.2 0.1 0.3 0.6</probabilities>
+		</cpt>
+		<decision id="Invest">
+			<state id="Invest" />
+			<state id="DoNotInvest" />
+			<parents>SensitivityP</parents>
+		</decision>
+		<utility id="Gain">
+			<parents>Success Invest SensitivityS</parents>
+			<utilities>2000 8000 15000 500 500 500 -5000 -5000 -5000 500 500 500</utilities>
+		</utility>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="GeNIe 5.0.5310.0 ACADEMIC" name="Venture ID: Sensitivity analysis in GeNIe">
+			<comment>This tutorial model demonstrates sensitivity analysis in GeNIe.\nNode Sensitivity is an index node that allows us to (1) enter various values for the probability distribution of node Success, and (2) observe the expected utilities of various decision options in node Invest for these values.\nReference:\nBayesFusion, LLC</comment>
+			<node id="SensitivityS">
+				<name>Sensitivity of $</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>33 58 124 108</position>
+				<barchart active="true" width="128" height="80" />
+			</node>
+			<node id="SensitivityP">
+				<name>Sensitivity of P</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>193 58 284 108</position>
+				<comment>This variable is an index that allows for computing sensitivity of the result to uncertainty about the a-priori probability of success of the business venture.</comment>
+				<barchart active="true" width="128" height="80" />
+			</node>
+			<node id="Success">
+				<name>Success of the venture</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>290 180 418 251</position>
+				<comment>This variable describes uncertainty related to the success of a widget manufacturing plant. Quantification of the uncertainty is obtained from market statistics for widget producing ventures. We simplified the variable somewhat by assuming that it can take only two values: success or failure.</comment>
+				<barchart active="true" width="128" height="76" />
+			</node>
+			<node id="Forecast">
+				<name>Expert forecast</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>305 322 407 377</position>
+				<comment>The information captured in this variable comes from T.J. Jones Company, Professional Consultants.</comment>
+				<barchart active="true" width="128" height="80" />
+			</node>
+			<node id="Invest">
+				<name>Investment decision</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>122 191 218 241</position>
+				<comment>The decision is whether to invest $5,000 in a startup company. The options are to invest or not to invest. In the latter case, the money will be deposited risk-free in a bank.</comment>
+				<barchart active="true" width="158" height="76" />
+			</node>
+			<node id="Gain">
+				<name>Financial Gain</name>
+				<interior color="e5f6f7" />
+				<outline color="0000bb" />
+				<font color="000080" name="Arial" size="10" bold="true" />
+				<position>48 331 165 375</position>
+				<comment>This node specifies the total financial gain resulting from the investment decision. Please note that the original investment amount is not included in the gain.</comment>
+				<barchart active="true" width="127" height="56" />
+			</node>
+		</genie>
+	</extensions>
+</smile>

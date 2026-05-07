@@ -1,0 +1,33 @@
+LEYENDA DE CODIFICACIÓN PARA REGLAS CSV
+========================================
+
+REGLA GENERAL:
+1. VALORES POSITIVOS (>0): Nodo de Evidencia Observada (Input).
+   Estado = Índice del valor - 1
+2. VALORES NEGATIVOS (<0): Nodo de Decisión Óptima (Output).
+   Acción = Índice del valor absoluto - 1
+3. VALOR CERO (0): El nodo no es relevante para la regla actual.
+
+Nodo: Forecast (CHANCE)
+  1 : Good
+  2 : Moderate
+  3 : Poor
+------------------------------
+Nodo: Invest (DECISION)
+  1 : Invest
+  2 : DoNotInvest
+------------------------------
+Nodo: SensitivityP (DECISION)
+  1 : Low
+  2 : Nominal
+  3 : High
+------------------------------
+Nodo: SensitivityS (DECISION)
+  1 : Low
+  2 : Nominal
+  3 : High
+------------------------------
+Nodo: Success (CHANCE)
+  1 : Success
+  2 : Failure
+------------------------------

@@ -1,0 +1,51 @@
+TABLAS DE UTILIDAD ESPERADA POR NODO DE DECISIÓN
+============================================================
+
+--- NODO DE DECISIÓN: HEARTPHARMA ---
+  # | PAIN | ANGIOGRAM | EARLYRESULTS      ||           NO         YES
+----------------------------------------------------------------------
+  1 | ABSENT | NEGATIVE | CoRem            || *     6.9755      6.6092
+  2 | ABSENT | NEGATIVE | PaRem            ||       6.8381*     7.1678
+  3 | ABSENT | NEGATIVE | NoChng           ||       6.6092*     6.9755
+  4 | ABSENT | NEGATIVE | PrgrsvDisease    ||       6.3804*     6.8381
+  5 | ABSENT | POSITIVE | CoRem            || *     3.7366      3.6465
+  6 | ABSENT | POSITIVE | PaRem            || *     3.6815      3.5914
+  7 | ABSENT | POSITIVE | NoChng           || *     3.6265      3.5013
+  8 | ABSENT | POSITIVE | PrgrsvDisease    || *     3.5364      3.4462
+  9 | PRESENT | NEGATIVE | CoRem           || *     5.4207      5.1455
+ 10 | PRESENT | NEGATIVE | PaRem           ||       5.3166*     5.5650
+ 11 | PRESENT | NEGATIVE | NoChng          ||       5.1455*     5.4207
+ 12 | PRESENT | NEGATIVE | PrgrsvDisease   ||       4.9744*     5.3166
+ 13 | PRESENT | POSITIVE | CoRem           || *     3.9717      3.8479
+ 14 | PRESENT | POSITIVE | PaRem           || *     3.8962      3.7725
+ 15 | PRESENT | POSITIVE | NoChng          || *     3.8208      3.6488
+ 16 | PRESENT | POSITIVE | PrgrsvDisease   || *     3.6971      3.5733
+
+============================================================
+
+--- NODO DE DECISIÓN: HEARTSURGERY ---
+  # | PAIN | ANGIOGRAM     ||           NO         YES
+------------------------------------------------------
+  1 | ABSENT | NEGATIVE    || *     6.9761      3.7318
+  2 | ABSENT | POSITIVE    || *     5.3391      3.9065
+  3 | PRESENT | NEGATIVE   || *     6.6634      3.7787
+  4 | PRESENT | POSITIVE   ||       3.4319*     4.1778
+
+============================================================
+
+============================================================
+EXTREMOS GLOBALES ABSOLUTOS DE TODA LA RED
+============================================================
+
+[+] MÁXIMO ABSOLUTO: 7.1678
+    - Nodo de Decisión: HEARTPHARMA (Acción: YES)
+    - Nodos Condicionantes (Padres):
+        * PAIN: ABSENT
+        * ANGIOGRAM: NEGATIVE
+        * EARLYRESULTS: PaRem
+
+[-] MÍNIMO ABSOLUTO: 3.4319
+    - Nodo de Decisión: HEARTSURGERY (Acción: NO)
+    - Nodos Condicionantes (Padres):
+        * PAIN: PRESENT
+        * ANGIOGRAM: POSITIVE

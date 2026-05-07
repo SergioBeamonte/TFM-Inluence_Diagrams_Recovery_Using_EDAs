@@ -1,0 +1,46 @@
+LEYENDA DE CODIFICACIÓN PARA REGLAS CSV
+========================================
+
+REGLA GENERAL:
+1. VALORES POSITIVOS (>0): Nodo de Evidencia Observada (Input).
+   Estado = Índice del valor - 1
+2. VALORES NEGATIVOS (<0): Nodo de Decisión Óptima (Output).
+   Acción = Índice del valor absoluto - 1
+3. VALOR CERO (0): El nodo no es relevante para la regla actual.
+
+Nodo: ANGIOGRAM (CHANCE)
+  1 : NEGATIVE
+  2 : POSITIVE
+------------------------------
+Nodo: EARLYRESULTS (CHANCE)
+  1 : CoRem
+  2 : PaRem
+  3 : NoChng
+  4 : PrgrsvDisease
+------------------------------
+Nodo: ECONOMICALC (CHANCE)
+  1 : LOW
+  2 : MEDIUM
+  3 : HIGH
+------------------------------
+Nodo: HEARTDISEASE (CHANCE)
+  1 : ABSENT
+  2 : PRESENT
+------------------------------
+Nodo: HEARTPHARMA (DECISION)
+  1 : NO
+  2 : YES
+------------------------------
+Nodo: HEARTSURGERY (DECISION)
+  1 : NO
+  2 : YES
+------------------------------
+Nodo: LIFEQ (CHANCE)
+  1 : DEAD
+  2 : LIVE2ALQ
+  3 : LIVE2AHQ
+------------------------------
+Nodo: PAIN (CHANCE)
+  1 : ABSENT
+  2 : PRESENT
+------------------------------
