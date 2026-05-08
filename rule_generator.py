@@ -289,7 +289,7 @@ if __name__ == "__main__":
         gen.export_mappings(r"example\nhlv1\rule_mappings.txt")
         gen.export_utility_tables(r"example\nhlv1\utility_tables.txt")
         
-        gen.generate_csv(n_rules=25, output_path=r"example\nhlv1\reglas_generadas.csv")
+        gen.generate_csv(n_rules=75, output_path=r"example\nhlv1\reglas_generadas.csv")
         
     except Exception as e:
         print(f"[!] Error crítico: {e}")
