@@ -91,7 +91,8 @@ class IDRecovery:
 
         self.gen_individuals = []
         self.gen_fitness = []
-        self.gen_errors = []
+        self.gen_errors_chance = []
+        self.gen_errors_utility = []
         self.gen_accuracies = []
 
         self.history = []
@@ -146,13 +147,14 @@ class IDRecovery:
 
     def _decode_vector(self, vector):
         pos = 0
-        real_error = 0
+        real_error_chance = 0.0
+        real_error_utility = 0.0
         decoded_vals = {}
-        
+
         for s in self.specs:
             raw = vector[pos:pos+s['free_size']]
             pos += s['free_size']
-            
+
             if s['kind'] == 'chance':
                 raw_r = raw.reshape(s['shape'])
                 res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
@@ -164,12 +166,16 @@ class IDRecovery:
                     val[np.ravel_multi_index(idx, s['shape'])] = fv
 
             decoded_vals[s['name']] = val
-            real_error += np.mean((val - self.original_defs_scaled[s['name']])**2)
-            
-        return decoded_vals, real_error
+            node_mse = float(np.mean((val - self.original_defs_scaled[s['name']])**2))
+            if s['kind'] == 'chance':
+                real_error_chance += node_mse
+            else:
+                real_error_utility += node_mse
+
+        return decoded_vals, real_error_chance, real_error_utility
 
     def fitness(self, vector):
-        decoded_vals, real_error = self._decode_vector(vector)
+        decoded_vals, real_error_chance, real_error_utility = self._decode_vector(vector)
         
         for name, val in decoded_vals.items():
             self.net.set_node_definition(name, val.tolist()) 
@@ -248,7 +254,8 @@ class IDRecovery:
             
         self.gen_individuals.append(vector)
         self.gen_fitness.append(penalty_score)
-        self.gen_errors.append(real_error)
+        self.gen_errors_chance.append(real_error_chance)
+        self.gen_errors_utility.append(real_error_utility)
         self.gen_accuracies.append(accuracy)
         self.eval_count += 1
         self.evals_this_gen += 1
@@ -261,9 +268,14 @@ class IDRecovery:
         # evaluación final tras minimize()).
         if hasattr(self, 'size_gen') and self.evals_this_gen >= self.size_gen:
             
+            errors_chance_arr = np.array(self.gen_errors_chance)
+            errors_utility_arr = np.array(self.gen_errors_utility)
             self.history.append({
                 'gen': self.current_gen,
-                'errors': np.array(self.gen_errors),
+                'errors_chance': errors_chance_arr,
+                'errors_utility': errors_utility_arr,
+                # 'errors' = suma por individuo (compatibilidad con el notebook antiguo)
+                'errors': errors_chance_arr + errors_utility_arr,
                 'fitness': np.array(self.gen_fitness),
                 'accuracies': np.array(self.gen_accuracies)
             })
@@ -312,7 +324,11 @@ class IDRecovery:
             
             self.current_gen += 1
             self.evals_this_gen = 0
-            self.gen_individuals, self.gen_fitness, self.gen_errors, self.gen_accuracies = [], [], [], []
+            self.gen_individuals = []
+            self.gen_fitness = []
+            self.gen_errors_chance = []
+            self.gen_errors_utility = []
+            self.gen_accuracies = []
 
             if hasattr(self, 'target_fitness') and value_to_check <= self.target_fitness:
                 raise StopIteration(f"{msg_parada} un Score <= {self.target_fitness:.4f}")
@@ -445,29 +461,32 @@ class BatchExperimenter:
         # Encontramos la generación máxima alcanzada (por si algunos terminaron antes)
         max_gens = max(len(exp.history) for exp in self.experiments)
         avg_history = []
-        
+
         for gen_idx in range(max_gens):
             gen_fitness_list = []
-            gen_errors_list = []
+            gen_errors_chance_list = []
+            gen_errors_utility_list = []
             gen_accs_list = []
-            
+
             for exp in self.experiments:
                 # Si el experimento paró por 'stop_mode', usamos su última generación registrada (padding)
                 hist_idx = min(gen_idx, len(exp.history) - 1)
                 gen_data = exp.history[hist_idx]
-                
+
                 gen_fitness_list.append(gen_data['fitness'])
-                gen_errors_list.append(gen_data['errors'])
+                gen_errors_chance_list.append(gen_data['errors_chance'])
+                gen_errors_utility_list.append(gen_data['errors_utility'])
                 gen_accs_list.append(gen_data['accuracies'])
-            
+
             # Promediamos arreglos de numpy a lo largo del eje 0 (los individuos)
             avg_history.append({
                 'gen': gen_idx + 1,
                 'fitness': np.mean(gen_fitness_list, axis=0),
-                'errors': np.mean(gen_errors_list, axis=0),
+                'errors_chance': np.mean(gen_errors_chance_list, axis=0),
+                'errors_utility': np.mean(gen_errors_utility_list, axis=0),
                 'accuracies': np.mean(gen_accs_list, axis=0),
                 'fitness_std': np.std(gen_fitness_list, axis=0),
                 'accuracies_std': np.std(gen_accs_list, axis=0)
             })
-            
+
         return AveragedExperiment(avg_history, **self.id_recovery_kwargs)
