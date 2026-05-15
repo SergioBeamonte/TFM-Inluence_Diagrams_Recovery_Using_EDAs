@@ -6,7 +6,7 @@ on:
       optimizer:
         description: "Que optimizador(es) ejecutar"
         type: choice
-        options: [both, umda, egda]
+        options: [both, umda, egda, emna]
         default: both
       xdsl_path:
         description: "Ruta al .xdsl (vacio = usa el del script)"
