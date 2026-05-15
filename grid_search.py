@@ -25,9 +25,10 @@ import numpy as np
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # --- Red y reglas ---
-BASE_FOLDER = r"example\bypass2"
+BASE_FOLDER = r"example\nhlv1"
 
-XDSL_PATH = os.path.join(BASE_FOLDER, r"network-bypass2.xdsl")
+# XDSL_PATH = os.path.join(BASE_FOLDER, r"network-bypass2.xdsl")
+XDSL_PATH = os.path.join(BASE_FOLDER, r"network-nhlv1.xdsl")
 RULES_CSV = os.path.join(BASE_FOLDER, r"reglas_generadas.csv")
 
 # --- Parámetros fijos del optimizador ---
@@ -43,8 +44,8 @@ BASE_CONFIG = {
 }
 
 # --- Parámetros del optimizador ---
-SIZE_GEN = 100       # tamaño de población por generación
-MAX_ITER = 100       # máximo de generaciones
+SIZE_GEN = 50       # tamaño de población por generación
+MAX_ITER = 60       # máximo de generaciones
 TARGET_FITNESS = 1e-5
 
 # --- Grid de búsqueda ---
