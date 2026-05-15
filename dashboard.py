@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.title("📊 EDA Grid Search — Comparación Multi-Modelo")
-st.caption("Barrido paramétrico para recuperación de IDs con EDAs. Carga automática de todos los modelos disponibles.")
+st.caption("Barrido paramétrico para recuperación de IDs. Carga automática de todos los modelos disponibles.")
 
 # ─── DISCOVERY ────────────────────────────────────────────────────────────────
 
@@ -21,10 +21,10 @@ def discover_models():
     for f in glob.glob("**/grid_search_results_*.csv", recursive=True):
         model = os.path.basename(f).replace("grid_search_results_", "").replace(".csv", "")
         curves = f.replace("results", "curves")
-        found[model] = {
-            "results": os.path.normpath(f),
-            "curves": os.path.normpath(curves) if os.path.exists(curves) else None,
-        }
+        found[model] = (
+            os.path.normpath(f),
+            os.path.normpath(curves) if os.path.exists(curves) else None,
+        )
     return found
 
 
@@ -34,12 +34,14 @@ def load_all(model_dict_frozen):
     for model, (results_path, curves_path) in model_dict_frozen:
         if results_path and os.path.exists(results_path):
             df = pd.read_csv(results_path)
-            df.insert(0, "model", model)
-            res_list.append(df)
+            if not df.empty:
+                df.insert(0, "model", model)
+                res_list.append(df)
         if curves_path and os.path.exists(curves_path):
             df = pd.read_csv(curves_path)
-            df.insert(0, "model", model)
-            cur_list.append(df)
+            if not df.empty:
+                df.insert(0, "model", model)
+                cur_list.append(df)
     df_r = pd.concat(res_list, ignore_index=True) if res_list else pd.DataFrame()
     df_c = pd.concat(cur_list, ignore_index=True) if cur_list else pd.DataFrame()
     return df_r, df_c
@@ -48,40 +50,44 @@ def load_all(model_dict_frozen):
 model_dict = discover_models()
 
 if not model_dict:
-    st.error(
-        "No se encontraron archivos `grid_search_results_MODELO.csv` en ningún subdirectorio. "
-        "Asegúrate de ejecutar el grid search primero."
+    st.error("No se encontraron archivos `grid_search_results_MODELO.csv` en ningún subdirectorio.")
+    st.stop()
+
+df_results_all, df_curves_all = load_all(tuple(sorted(model_dict.items())))
+
+if df_results_all.empty and df_curves_all.empty:
+    models_found = ", ".join(sorted(model_dict.keys()))
+    st.info(
+        f"Los archivos para **{models_found}** están vacíos — el grid search probablemente "
+        "aún está en ejecución. Recarga la página cuando termine."
     )
     st.stop()
 
-# Freeze dict for cache key (must be hashable)
-df_results_all, df_curves_all = load_all(tuple(sorted(
-    (k, (v["results"], v["curves"])) for k, v in model_dict.items()
-)))
+MODEL_COLORS   = alt.Scale(scheme="tableau10")
+FITNESS_COLORS = alt.Scale(scheme="set2")
 
-# ─── SIDEBAR: FILTROS GLOBALES ─────────────────────────────────────────────────
+# ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
     st.header("⚙️ Filtros Globales")
-    st.caption(f"Modelos disponibles: {', '.join(sorted(model_dict.keys()))}")
+    st.caption("Se aplican a ambas pestañas.")
 
-    all_models = sorted(df_results_all["model"].unique())
-    sel_models = st.multiselect("Modelos", all_models, default=all_models)
+    ref = df_results_all if not df_results_all.empty else df_curves_all
 
-    all_fitness = sorted(df_results_all["fitness_type"].unique())
-    sel_fitness = st.multiselect("Tipo de Fitness", all_fitness, default=all_fitness)
+    all_models  = sorted(ref["model"].unique())
+    all_fitness = sorted(ref["fitness_type"].unique())
+    all_stop    = sorted(ref["stop_mode"].unique())
+    all_pct     = sorted(ref["n_decision_rules_pct"].unique())
 
-    all_stop = sorted(df_results_all["stop_mode"].unique())
-    sel_stop = st.multiselect("Modo de Parada", all_stop, default=all_stop)
-
-    all_pct = sorted(df_results_all["n_decision_rules_pct"].unique())
-    sel_pct = st.multiselect("% Reglas de Decisión", all_pct, default=all_pct)
-
-    st.divider()
-    st.caption("Los filtros se aplican a ambas pestañas.")
+    sel_models  = st.multiselect("Modelos",              all_models,  default=all_models)
+    sel_fitness = st.multiselect("Tipo de Fitness",      all_fitness, default=all_fitness)
+    sel_stop    = st.multiselect("Modo de Parada",       all_stop,    default=all_stop)
+    sel_pct     = st.multiselect("% Reglas de Decisión", all_pct,     default=all_pct)
 
 
 def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty:
+        return df
     return df[
         df["model"].isin(sel_models)
         & df["fitness_type"].isin(sel_fitness)
@@ -91,11 +97,7 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
 
 
 df_r = apply_filters(df_results_all)
-df_c = apply_filters(df_curves_all) if not df_curves_all.empty else pd.DataFrame()
-
-if df_r.empty:
-    st.warning("No hay datos para la combinación de filtros seleccionada.")
-    st.stop()
+df_c = apply_filters(df_curves_all)
 
 # ─── TABS ─────────────────────────────────────────────────────────────────────
 
@@ -107,533 +109,573 @@ tab_results, tab_curves = st.tabs(["📋 Resultados por Modelo", "📈 Curvas de
 # ══════════════════════════════════════════════════════════════════════════════
 
 with tab_results:
-    # ── KPIs ──────────────────────────────────────────────────────────────────
-    best_row = df_r.loc[df_r["accuracy_media"].idxmax()]
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Configuraciones", len(df_r))
-    k2.metric("Mejor Accuracy Medio", f"{best_row['accuracy_media']:.1f}%",
-              delta=f"{best_row['model']} · {best_row['fitness_type']} · {best_row['stop_mode']} · {best_row['n_decision_rules_pct']}%")
-    k3.metric("Mejor Accuracy Puntual", f"{df_r['accuracy_mejor'].max():.1f}%")
-    k4.metric("Menor Error Medio", f"{df_r['error_media'].min():.4f}")
-    k5.metric("Gen. Media de Parada", f"{df_r['stop_gen_media'].mean():.1f}")
-
-    st.divider()
-
-    # ── CHART 1: Accuracy media por modelo × % reglas ─────────────────────────
-    st.subheader("1 · Accuracy Medio por % Reglas y Modelo")
-
-    bar_pct = (
-        df_r.groupby(["model", "n_decision_rules_pct"], as_index=False)
-        .agg(accuracy_media=("accuracy_media", "mean"),
-             accuracy_mejor=("accuracy_mejor", "max"),
-             error_media=("error_media", "mean"))
-    )
-
-    ch1 = (
-        alt.Chart(bar_pct)
-        .mark_bar()
-        .encode(
-            x=alt.X("n_decision_rules_pct:O", title="% Reglas de Decisión"),
-            y=alt.Y("accuracy_media:Q", title="Accuracy Medio (%)", scale=alt.Scale(zero=False)),
-            color=alt.Color("model:N", title="Modelo", scale=alt.Scale(scheme="tableau10")),
-            xOffset=alt.XOffset("model:N"),
-            tooltip=[
-                alt.Tooltip("model:N", title="Modelo"),
-                alt.Tooltip("n_decision_rules_pct:O", title="% Reglas"),
-                alt.Tooltip("accuracy_media:Q", title="Accuracy Medio", format=".2f"),
-                alt.Tooltip("accuracy_mejor:Q", title="Mejor Accuracy", format=".2f"),
-                alt.Tooltip("error_media:Q", title="Error Medio", format=".4f"),
-            ],
+    if df_r.empty:
+        st.info("Sin datos de resultados para los filtros seleccionados.")
+    else:
+        # ── KPIs ──────────────────────────────────────────────────────────────
+        best = df_r.loc[df_r["best_accuracy_mean"].idxmax()]
+        k1, k2, k3, k4, k5 = st.columns(5)
+        k1.metric("Configuraciones totales", len(df_r))
+        k2.metric(
+            "Mejor Accuracy (best_mean)",
+            f"{best['best_accuracy_mean']:.1f}%",
+            delta=f"{best['model']} · {best['fitness_type']} · {best['stop_mode']} · {best['n_decision_rules_pct']}%",
         )
-        .properties(height=320)
-    )
-    st.altair_chart(ch1, use_container_width=True)
-
-    # ── CHART 2: Accuracy por fitness_type × modelo ───────────────────────────
-    st.subheader("2 · Accuracy y Error por Fitness Type")
-
-    ft_data = (
-        df_r.groupby(["model", "fitness_type"], as_index=False)
-        .agg(accuracy_media=("accuracy_media", "mean"),
-             error_media=("error_media", "mean"))
-    )
-
-    c2a = (
-        alt.Chart(ft_data)
-        .mark_bar()
-        .encode(
-            x=alt.X("fitness_type:N", title="Fitness Type"),
-            y=alt.Y("accuracy_media:Q", title="Accuracy Medio (%)", scale=alt.Scale(zero=False)),
-            color=alt.Color("model:N", title="Modelo", scale=alt.Scale(scheme="tableau10")),
-            xOffset="model:N",
-            tooltip=["model:N", "fitness_type:N",
-                     alt.Tooltip("accuracy_media:Q", format=".2f")],
+        k3.metric(
+            "Accuracy Global Máximo",
+            f"{df_r['best_accuracy_max'].max():.1f}%",
         )
-        .properties(height=300, title="Accuracy Medio por Fitness Type")
-    )
-
-    c2b = (
-        alt.Chart(ft_data)
-        .mark_bar()
-        .encode(
-            x=alt.X("fitness_type:N", title="Fitness Type"),
-            y=alt.Y("error_media:Q", title="Error Medio (MSE)", scale=alt.Scale(zero=False)),
-            color=alt.Color("model:N", title="Modelo", scale=alt.Scale(scheme="tableau10")),
-            xOffset="model:N",
-            tooltip=["model:N", "fitness_type:N",
-                     alt.Tooltip("error_media:Q", format=".4f")],
+        k4.metric(
+            "Menor MSE Chance (media)",
+            f"{df_r['mean_mse_chance_mean'].min():.3f}",
         )
-        .properties(height=300, title="Error Medio por Fitness Type")
-    )
+        k5.metric("Gen. Media de Parada", f"{df_r['stop_gen_mean'].mean():.1f}")
 
-    ca, cb = st.columns(2)
-    ca.altair_chart(c2a, use_container_width=True)
-    cb.altair_chart(c2b, use_container_width=True)
+        st.divider()
 
-    # ── CHART 3: Stop mode × accuracy ─────────────────────────────────────────
-    st.subheader("3 · Impacto del Stop Mode por Modelo")
-
-    sm_data = (
-        df_r.groupby(["model", "stop_mode"], as_index=False)
-        .agg(accuracy_media=("accuracy_media", "mean"),
-             stop_gen_media=("stop_gen_media", "mean"))
-    )
-
-    c3a = (
-        alt.Chart(sm_data)
-        .mark_bar()
-        .encode(
-            x=alt.X("stop_mode:N", title="Stop Mode"),
-            y=alt.Y("accuracy_media:Q", title="Accuracy Medio (%)", scale=alt.Scale(zero=False)),
-            color=alt.Color("model:N", scale=alt.Scale(scheme="tableau10")),
-            xOffset="model:N",
-            tooltip=["model:N", "stop_mode:N",
-                     alt.Tooltip("accuracy_media:Q", format=".2f")],
+        # ── CHART 1: Scatter accuracy vs gen. parada ───────────────────────────
+        st.subheader("1 · Accuracy vs Generación de Parada")
+        st.caption(
+            "Cada punto = una configuración (fitness × stop mode × % reglas). "
+            "Color = fitness type · Forma = modelo."
         )
-        .properties(height=280, title="Accuracy por Stop Mode")
-    )
 
-    c3b = (
-        alt.Chart(sm_data)
-        .mark_bar()
-        .encode(
-            x=alt.X("stop_mode:N", title="Stop Mode"),
-            y=alt.Y("stop_gen_media:Q", title="Generación Media de Parada"),
-            color=alt.Color("model:N", scale=alt.Scale(scheme="tableau10")),
-            xOffset="model:N",
-            tooltip=["model:N", "stop_mode:N",
-                     alt.Tooltip("stop_gen_media:Q", format=".1f")],
+        scatter = (
+            alt.Chart(df_r)
+            .mark_point(size=90, opacity=0.8, filled=True)
+            .encode(
+                x=alt.X("stop_gen_mean:Q", title="Generación Media de Parada"),
+                y=alt.Y(
+                    "best_accuracy_mean:Q",
+                    title="Mejor Accuracy Medio (%)",
+                    scale=alt.Scale(zero=False),
+                ),
+                color=alt.Color("fitness_type:N", title="Fitness Type", scale=FITNESS_COLORS),
+                shape=alt.Shape("model:N", title="Modelo"),
+                tooltip=[
+                    alt.Tooltip("model:N",               title="Modelo"),
+                    alt.Tooltip("fitness_type:N",         title="Fitness"),
+                    alt.Tooltip("stop_mode:N",            title="Stop Mode"),
+                    alt.Tooltip("n_decision_rules_pct:Q", title="% Reglas"),
+                    alt.Tooltip("best_accuracy_mean:Q",   title="Best Acc. Mean",  format=".1f"),
+                    alt.Tooltip("mean_accuracy_mean:Q",   title="Mean Acc. Mean",  format=".1f"),
+                    alt.Tooltip("stop_gen_mean:Q",        title="Gen. Parada",     format=".1f"),
+                    alt.Tooltip("mean_mse_chance_mean:Q", title="MSE Chance",      format=".4f"),
+                    alt.Tooltip("mean_mse_utility_mean:Q",title="MSE Utility",     format=".4f"),
+                ],
+            )
+            .properties(height=400)
+            .interactive()
         )
-        .properties(height=280, title="Generación de Parada por Stop Mode")
-    )
+        st.altair_chart(scatter, use_container_width=True)
 
-    cc, cd = st.columns(2)
-    cc.altair_chart(c3a, use_container_width=True)
-    cd.altair_chart(c3b, use_container_width=True)
+        st.divider()
 
-    # ── CHART 4: Scatter accuracy vs stop_gen ─────────────────────────────────
-    st.subheader("4 · Accuracy vs Generación de Parada (todas las configs)")
+        # ── CHARTS 2 & 3: Por fitness type y por % reglas ─────────────────────
+        st.subheader("2 · Accuracy Medio por Fitness Type y por % Reglas")
 
-    sc4 = (
-        alt.Chart(df_r)
-        .mark_circle(size=80, opacity=0.75)
-        .encode(
-            x=alt.X("stop_gen_media:Q", title="Generación Media de Parada"),
-            y=alt.Y("accuracy_media:Q", title="Accuracy Medio (%)",
-                    scale=alt.Scale(zero=False)),
-            color=alt.Color("fitness_type:N", title="Fitness Type",
-                            scale=alt.Scale(scheme="tableau10")),
-            shape=alt.Shape("model:N", title="Modelo"),
-            tooltip=[
-                "model:N", "fitness_type:N", "stop_mode:N",
-                alt.Tooltip("n_decision_rules_pct:Q", title="% Reglas"),
-                alt.Tooltip("accuracy_media:Q", format=".2f"),
-                alt.Tooltip("stop_gen_media:Q", format=".1f"),
-                alt.Tooltip("error_media:Q", format=".4f"),
-            ],
+        ft_data = (
+            df_r.groupby(["model", "fitness_type"], as_index=False)
+            .agg(
+                best_accuracy_mean=("best_accuracy_mean", "mean"),
+                mean_accuracy_mean=("mean_accuracy_mean", "mean"),
+                stop_gen_mean=("stop_gen_mean", "mean"),
+            )
         )
-        .properties(height=380)
-        .interactive()
-    )
-    st.altair_chart(sc4, use_container_width=True)
 
-    # ── CHART 5: Mapa de calor accuracy por fitness × stop_mode ──────────────
-    st.subheader("5 · Mapa de Calor — Accuracy por Fitness × Stop Mode")
-
-    heat_data = (
-        df_r.groupby(["model", "fitness_type", "stop_mode"], as_index=False)
-        ["accuracy_media"].mean()
-    )
-
-    heatmap = (
-        alt.Chart(heat_data)
-        .mark_rect()
-        .encode(
-            x=alt.X("stop_mode:N", title="Stop Mode"),
-            y=alt.Y("fitness_type:N", title="Fitness Type"),
-            color=alt.Color("accuracy_media:Q", title="Accuracy Medio (%)",
-                            scale=alt.Scale(scheme="blues")),
-            facet=alt.Facet("model:N", columns=max(1, len(sel_models))),
-            tooltip=[
-                "model:N", "fitness_type:N", "stop_mode:N",
-                alt.Tooltip("accuracy_media:Q", format=".2f"),
-            ],
+        pct_data = (
+            df_r.groupby(["model", "n_decision_rules_pct"], as_index=False)
+            .agg(
+                best_accuracy_mean=("best_accuracy_mean", "mean"),
+                mean_accuracy_mean=("mean_accuracy_mean", "mean"),
+                best_accuracy_max=("best_accuracy_max",   "max"),
+            )
         )
-        .properties(width=180, height=130)
-    )
-    st.altair_chart(heatmap)
 
-    # ── CHART 6: Distribución mejor / media / peor por modelo ─────────────────
-    st.subheader("6 · Distribución de Accuracy por Modelo (Mejor / Media / Peor)")
-
-    box_data = (
-        df_r.groupby("model", as_index=False)
-        .agg(
-            Mejor=("accuracy_mejor", "mean"),
-            Media=("accuracy_media", "mean"),
-            Peor=("accuracy_peor", "mean"),
+        c2 = (
+            alt.Chart(ft_data)
+            .mark_bar()
+            .encode(
+                x=alt.X("fitness_type:N", title="Fitness Type", sort="-y"),
+                y=alt.Y("best_accuracy_mean:Q", title="Best Accuracy Medio (%)",
+                        scale=alt.Scale(zero=False)),
+                color=alt.Color("model:N", title="Modelo", scale=MODEL_COLORS),
+                xOffset="model:N",
+                tooltip=[
+                    "model:N", "fitness_type:N",
+                    alt.Tooltip("best_accuracy_mean:Q",  title="Best Acc. Mean",  format=".2f"),
+                    alt.Tooltip("mean_accuracy_mean:Q",  title="Mean Acc. Mean",  format=".2f"),
+                    alt.Tooltip("stop_gen_mean:Q",       title="Gen. Media",      format=".1f"),
+                ],
+            )
+            .properties(height=300, title="Por Fitness Type")
         )
-        .melt(id_vars="model", var_name="stat", value_name="accuracy")
-    )
 
-    ch6 = (
-        alt.Chart(box_data)
-        .mark_bar()
-        .encode(
-            x=alt.X("model:N", title="Modelo"),
-            y=alt.Y("accuracy:Q", title="Accuracy (%)", scale=alt.Scale(zero=False)),
-            color=alt.Color("stat:N", title="Estadístico",
-                            scale=alt.Scale(
-                                domain=["Mejor", "Media", "Peor"],
-                                range=["#2ecc71", "#3498db", "#e74c3c"],
-                            )),
-            xOffset="stat:N",
-            tooltip=["model:N", "stat:N",
-                     alt.Tooltip("accuracy:Q", format=".2f")],
+        c3 = (
+            alt.Chart(pct_data)
+            .mark_bar()
+            .encode(
+                x=alt.X("n_decision_rules_pct:O", title="% Reglas de Decisión"),
+                y=alt.Y("best_accuracy_mean:Q", title="Best Accuracy Medio (%)",
+                        scale=alt.Scale(zero=False)),
+                color=alt.Color("model:N", title="Modelo", scale=MODEL_COLORS),
+                xOffset="model:N",
+                tooltip=[
+                    "model:N",
+                    alt.Tooltip("n_decision_rules_pct:O",  title="% Reglas"),
+                    alt.Tooltip("best_accuracy_mean:Q",    format=".2f"),
+                    alt.Tooltip("best_accuracy_max:Q",     title="Máx. alcanzado", format=".2f"),
+                    alt.Tooltip("mean_accuracy_mean:Q",    title="Mean Acc. Mean", format=".2f"),
+                ],
+            )
+            .properties(height=300, title="Por % Reglas")
         )
-        .properties(height=300)
-    )
-    st.altair_chart(ch6, use_container_width=True)
 
-    # ── TABLA COMPLETA ─────────────────────────────────────────────────────────
-    st.divider()
-    st.subheader("📋 Tabla Completa — Todos los Modelos y Configuraciones")
+        col_a, col_b = st.columns(2)
+        col_a.altair_chart(c2, use_container_width=True)
+        col_b.altair_chart(c3, use_container_width=True)
 
-    ordered_cols = [
-        "model", "fitness_type", "stop_mode", "n_decision_rules_pct",
-        "accuracy_mejor", "accuracy_media", "accuracy_peor", "accuracy_std",
-        "error_mejor", "error_media", "error_peor", "error_std",
-        "stop_gen_mejor", "stop_gen_media", "stop_gen_peor", "stop_gen_std",
-        "fitness_mejor", "fitness_media", "fitness_peor", "fitness_std",
-        "total_rules", "n_decision_rules",
-    ]
-    show_cols = [c for c in ordered_cols if c in df_r.columns]
-    table = df_r[show_cols].sort_values(["accuracy_media", "model"], ascending=[False, True])
+        st.divider()
 
-    st.dataframe(
-        table,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "model":                  st.column_config.TextColumn("Modelo"),
-            "fitness_type":           st.column_config.TextColumn("Fitness"),
-            "stop_mode":              st.column_config.TextColumn("Stop Mode"),
-            "n_decision_rules_pct":   st.column_config.NumberColumn("% Reglas", format="%d %%"),
-            "accuracy_mejor":         st.column_config.NumberColumn("Acc. Mejor", format="%.1f %%"),
-            "accuracy_media":         st.column_config.NumberColumn("Acc. Media", format="%.1f %%"),
-            "accuracy_peor":          st.column_config.NumberColumn("Acc. Peor", format="%.1f %%"),
-            "accuracy_std":           st.column_config.NumberColumn("Acc. σ",    format="%.2f"),
-            "error_mejor":            st.column_config.NumberColumn("Err. Mejor", format="%.4f"),
-            "error_media":            st.column_config.NumberColumn("Err. Media", format="%.4f"),
-            "error_peor":             st.column_config.NumberColumn("Err. Peor",  format="%.4f"),
-            "error_std":              st.column_config.NumberColumn("Err. σ",     format="%.4f"),
-            "stop_gen_mejor":         st.column_config.NumberColumn("Gen. Min",   format="%.0f"),
-            "stop_gen_media":         st.column_config.NumberColumn("Gen. Media", format="%.1f"),
-            "stop_gen_peor":          st.column_config.NumberColumn("Gen. Max",   format="%.0f"),
-            "stop_gen_std":           st.column_config.NumberColumn("Gen. σ",     format="%.2f"),
-            "fitness_mejor":          st.column_config.NumberColumn("Fit. Mejor", format="%.4f"),
-            "fitness_media":          st.column_config.NumberColumn("Fit. Media", format="%.4f"),
-            "fitness_peor":           st.column_config.NumberColumn("Fit. Peor",  format="%.4f"),
-            "fitness_std":            st.column_config.NumberColumn("Fit. σ",     format="%.4f"),
-            "total_rules":            st.column_config.NumberColumn("Total Reglas"),
-            "n_decision_rules":       st.column_config.NumberColumn("N Reglas"),
-        },
-    )
+        # ── CHART 4: Heatmap fitness × stop_mode por modelo ───────────────────
+        st.subheader("3 · Mapa de Calor — Best Accuracy por Fitness × Stop Mode")
+        st.caption("Facetado por modelo.")
+
+        heat_data = (
+            df_r.groupby(["model", "fitness_type", "stop_mode"], as_index=False)
+            ["best_accuracy_mean"].mean()
+        )
+
+        heatmap = (
+            alt.Chart(heat_data)
+            .mark_rect(stroke="white", strokeWidth=1)
+            .encode(
+                x=alt.X("stop_mode:N",    title="Stop Mode",    sort=all_stop),
+                y=alt.Y("fitness_type:N", title="Fitness Type", sort=all_fitness),
+                color=alt.Color(
+                    "best_accuracy_mean:Q",
+                    title="Best Acc. Medio (%)",
+                    scale=alt.Scale(scheme="blues", domain=[
+                        heat_data["best_accuracy_mean"].min() - 2,
+                        heat_data["best_accuracy_mean"].max(),
+                    ]),
+                ),
+                facet=alt.Facet("model:N", columns=max(1, len(sel_models))),
+                tooltip=[
+                    "model:N", "fitness_type:N", "stop_mode:N",
+                    alt.Tooltip("best_accuracy_mean:Q", title="Best Acc. Medio (%)", format=".1f"),
+                ],
+            )
+            .properties(width=200, height=150)
+        )
+        st.altair_chart(heatmap)
+
+        st.divider()
+
+        # ── CHART 5: Best vs Mean accuracy por modelo ─────────────────────────
+        st.subheader("4 · Best Accuracy vs Mean Accuracy por Modelo")
+        st.caption(
+            "Diferencia entre el mejor individuo encontrado (best) y la media de accuracy "
+            "del run completo (mean). Mayor separación = el EDA encuentra buenas soluciones "
+            "puntualmente pero la media del run es más baja."
+        )
+
+        bvm_data = (
+            df_r.groupby("model", as_index=False)
+            .agg(
+                Best=("best_accuracy_mean",  "mean"),
+                Mean=("mean_accuracy_mean",  "mean"),
+            )
+            .melt(id_vars="model", var_name="stat", value_name="accuracy")
+        )
+
+        ch5 = (
+            alt.Chart(bvm_data)
+            .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .encode(
+                x=alt.X("model:N", title="Modelo"),
+                y=alt.Y("accuracy:Q", title="Accuracy (%)", scale=alt.Scale(zero=False)),
+                color=alt.Color(
+                    "stat:N",
+                    title="Estadístico",
+                    scale=alt.Scale(
+                        domain=["Best", "Mean"],
+                        range=["#2ecc71", "#3498db"],
+                    ),
+                ),
+                xOffset="stat:N",
+                tooltip=["model:N", "stat:N", alt.Tooltip("accuracy:Q", format=".2f")],
+            )
+            .properties(height=300)
+        )
+        st.altair_chart(ch5, use_container_width=True)
+
+        st.divider()
+
+        # ── CHART 6: MSE Chance vs MSE Utility ───────────────────────────────
+        st.subheader("5 · Error: MSE Chance vs MSE Utility")
+        st.caption(
+            "Scatter de los dos componentes del error. Cada punto es una configuración. "
+            "Color = modelo · Forma = fitness type."
+        )
+
+        mse_scatter = (
+            alt.Chart(df_r)
+            .mark_point(size=80, opacity=0.75, filled=True)
+            .encode(
+                x=alt.X("mean_mse_chance_mean:Q",   title="MSE Chance (media)",   scale=alt.Scale(zero=False)),
+                y=alt.Y("mean_mse_utility_mean:Q",  title="MSE Utility (media)",  scale=alt.Scale(zero=False)),
+                color=alt.Color("model:N",       title="Modelo",      scale=MODEL_COLORS),
+                shape=alt.Shape("fitness_type:N", title="Fitness Type"),
+                tooltip=[
+                    "model:N", "fitness_type:N", "stop_mode:N",
+                    alt.Tooltip("n_decision_rules_pct:Q",  title="% Reglas"),
+                    alt.Tooltip("mean_mse_chance_mean:Q",  title="MSE Chance",   format=".4f"),
+                    alt.Tooltip("mean_mse_utility_mean:Q", title="MSE Utility",  format=".4f"),
+                    alt.Tooltip("best_accuracy_mean:Q",    title="Best Acc.",    format=".1f"),
+                ],
+            )
+            .properties(height=380)
+            .interactive()
+        )
+        st.altair_chart(mse_scatter, use_container_width=True)
+
+        # ── TABLA COMPLETA ─────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("📋 Tabla Completa — Todos los Modelos y Configuraciones")
+
+        ordered_cols = [
+            "model", "fitness_type", "stop_mode", "n_decision_rules_pct",
+            "best_accuracy_mean",  "best_accuracy_std",  "best_accuracy_min",  "best_accuracy_max",
+            "mean_accuracy_mean",  "mean_accuracy_std",
+            "mean_mse_chance_mean","mean_mse_chance_std",
+            "mean_mse_utility_mean","mean_mse_utility_std",
+            "best_mse_chance_mean","best_mse_utility_mean",
+            "stop_gen_mean",       "stop_gen_std",        "stop_gen_min",       "stop_gen_max",
+            "best_fitness_mean",   "best_fitness_std",
+            "total_rules",         "n_decision_rules",
+        ]
+        show_cols = [c for c in ordered_cols if c in df_r.columns]
+        table = df_r[show_cols].sort_values(
+            ["best_accuracy_mean", "model"], ascending=[False, True]
+        )
+
+        st.dataframe(
+            table,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "model":                   st.column_config.TextColumn("Modelo"),
+                "fitness_type":            st.column_config.TextColumn("Fitness"),
+                "stop_mode":               st.column_config.TextColumn("Stop Mode"),
+                "n_decision_rules_pct":    st.column_config.NumberColumn("% Reglas",         format="%d %%"),
+                "best_accuracy_mean":      st.column_config.NumberColumn("Best Acc. Mean",   format="%.1f %%"),
+                "best_accuracy_std":       st.column_config.NumberColumn("Best Acc. σ",      format="%.2f"),
+                "best_accuracy_min":       st.column_config.NumberColumn("Best Acc. Min",    format="%.1f %%"),
+                "best_accuracy_max":       st.column_config.NumberColumn("Best Acc. Max",    format="%.1f %%"),
+                "mean_accuracy_mean":      st.column_config.NumberColumn("Mean Acc. Mean",   format="%.1f %%"),
+                "mean_accuracy_std":       st.column_config.NumberColumn("Mean Acc. σ",      format="%.2f"),
+                "mean_mse_chance_mean":    st.column_config.NumberColumn("MSE Chance (med)", format="%.3f"),
+                "mean_mse_chance_std":     st.column_config.NumberColumn("MSE Chance σ",     format="%.3f"),
+                "mean_mse_utility_mean":   st.column_config.NumberColumn("MSE Utility (med)",format="%.3f"),
+                "mean_mse_utility_std":    st.column_config.NumberColumn("MSE Utility σ",    format="%.3f"),
+                "best_mse_chance_mean":    st.column_config.NumberColumn("Best MSE Chance",  format="%.3f"),
+                "best_mse_utility_mean":   st.column_config.NumberColumn("Best MSE Utility", format="%.3f"),
+                "stop_gen_mean":           st.column_config.NumberColumn("Gen. Media",        format="%.1f"),
+                "stop_gen_std":            st.column_config.NumberColumn("Gen. σ",            format="%.2f"),
+                "stop_gen_min":            st.column_config.NumberColumn("Gen. Min",          format="%.0f"),
+                "stop_gen_max":            st.column_config.NumberColumn("Gen. Max",          format="%.0f"),
+                "best_fitness_mean":       st.column_config.NumberColumn("Best Fitness Mean", format="%.4f"),
+                "best_fitness_std":        st.column_config.NumberColumn("Best Fitness σ",    format="%.4f"),
+                "total_rules":             st.column_config.NumberColumn("Total Reglas"),
+                "n_decision_rules":        st.column_config.NumberColumn("N Reglas"),
+            },
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # TAB 2 — CURVES
 # ══════════════════════════════════════════════════════════════════════════════
 
+CURVE_METRICS = {
+    "Accuracy (%)":   "mean_accuracy",
+    "Fitness":        "mean_fitness",
+    "MSE Chance":     "mean_error_chance",
+    "MSE Utility":    "mean_error_utility",
+}
+
 with tab_curves:
     if df_c.empty:
-        st.info("No hay curvas disponibles para los modelos/filtros seleccionados.")
-        st.stop()
+        st.info("Sin datos de curvas para los filtros seleccionados — puede que el grid search aún esté corriendo.")
+    else:
+        df_c["config"] = (
+            df_c["fitness_type"] + " | "
+            + df_c["stop_mode"] + " | "
+            + df_c["n_decision_rules_pct"].astype(str) + "%"
+        )
+        df_c["model_config"] = df_c["model"] + " · " + df_c["config"]
 
-    # Etiqueta de config para leyendas
-    df_c["config"] = (
-        df_c["fitness_type"] + " | "
-        + df_c["stop_mode"] + " | "
-        + df_c["n_decision_rules_pct"].astype(str) + "%"
-    )
-    df_c["model_config"] = df_c["model"] + " · " + df_c["config"]
+        # ── CONTROLES ─────────────────────────────────────────────────────────
+        ctrl1, ctrl2, ctrl3 = st.columns([1, 1, 2])
 
-    # ── CONTROLES LOCALES ──────────────────────────────────────────────────────
-    ctrl1, ctrl2, ctrl3 = st.columns([1, 1, 2])
+        sel_metric_label = ctrl1.selectbox("Métrica principal", list(CURVE_METRICS.keys()))
+        sel_metric = CURVE_METRICS[sel_metric_label]
 
-    metric_map = {"Accuracy (%)": "accuracy", "Fitness": "fitness", "MSE": "mse"}
-    sel_metric_label = ctrl1.selectbox("Métrica principal", list(metric_map.keys()))
-    sel_metric = metric_map[sel_metric_label]
+        max_gen  = int(df_c["generation"].max())
+        gen_range = ctrl2.slider("Rango de generaciones", 1, max_gen, (1, max_gen))
 
-    max_gen = int(df_c["generation"].max())
-    gen_range = ctrl2.slider("Rango de generaciones", 1, max_gen, (1, max_gen))
-
-    # Añadir multiselect de fitness_type específico para curvas
-    curve_fitness = ctrl3.multiselect(
-        "Filtro adicional de Fitness (curvas)",
-        sorted(df_c["fitness_type"].unique()),
-        default=sorted(df_c["fitness_type"].unique()),
-    )
-
-    df_c_f = df_c[
-        (df_c["generation"] >= gen_range[0])
-        & (df_c["generation"] <= gen_range[1])
-        & (df_c["fitness_type"].isin(curve_fitness))
-    ].copy()
-
-    if df_c_f.empty:
-        st.warning("No hay curvas para esta selección.")
-        st.stop()
-
-    # ── SUB-TABS ───────────────────────────────────────────────────────────────
-    ctab1, ctab2, ctab3 = st.tabs([
-        "🌐 Comparación Global",
-        "📉 Promedio por Modelo",
-        "🔬 Drilldown por Config",
-    ])
-
-    # ── CTAB 1: Todas las curvas ───────────────────────────────────────────────
-    with ctab1:
-        st.subheader(f"{sel_metric_label} — Todas las configuraciones")
-        st.caption("Haz clic en una serie de la leyenda para resaltarla.")
-
-        highlight = alt.selection_point(fields=["model"], bind="legend")
-
-        base = alt.Chart(df_c_f).encode(
-            x=alt.X("generation:Q", title="Generación"),
-            y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
-                    scale=alt.Scale(zero=False)),
-            color=alt.Color("model:N", title="Modelo",
-                            scale=alt.Scale(scheme="tableau10")),
-            detail="model_config:N",
-            opacity=alt.condition(highlight, alt.value(0.85), alt.value(0.08)),
-            tooltip=[
-                "model:N", "fitness_type:N", "stop_mode:N",
-                alt.Tooltip("n_decision_rules_pct:O", title="% Reglas"),
-                alt.Tooltip(f"{sel_metric}:Q", format=".4f"),
-                "generation:Q",
-            ],
+        curve_fitness = ctrl3.multiselect(
+            "Fitness (filtro adicional curvas)",
+            sorted(df_c["fitness_type"].unique()),
+            default=sorted(df_c["fitness_type"].unique()),
         )
 
-        chart_all = (
-            base.mark_line(strokeWidth=1.2)
-            + base.mark_circle(size=1).add_params(highlight)
-        ).properties(height=420).interactive()
-
-        st.altair_chart(chart_all, use_container_width=True)
-
-        # Añadir también las tres métricas en paralelo para contexto general
-        st.subheader("Todas las métricas — vista rápida")
-        metrics_all = ["accuracy", "fitness", "mse"]
-        labels_all = ["Accuracy (%)", "Fitness", "MSE"]
-
-        m_cols = st.columns(3)
-        for col, m, lbl in zip(m_cols, metrics_all, labels_all):
-            avg_all = df_c_f.groupby(["model", "generation"], as_index=False)[m].mean()
-            mini = (
-                alt.Chart(avg_all)
-                .mark_line(strokeWidth=2)
-                .encode(
-                    x=alt.X("generation:Q", title="Gen."),
-                    y=alt.Y(f"{m}:Q", title=lbl, scale=alt.Scale(zero=False)),
-                    color=alt.Color("model:N", legend=None,
-                                    scale=alt.Scale(scheme="tableau10")),
-                    tooltip=["model:N", "generation:Q",
-                             alt.Tooltip(f"{m}:Q", format=".4f")],
-                )
-                .properties(height=220, title=lbl)
-                .interactive()
-            )
-            col.altair_chart(mini, use_container_width=True)
-
-    # ── CTAB 2: Promedio por modelo ────────────────────────────────────────────
-    with ctab2:
-        st.subheader(f"{sel_metric_label} promediado sobre todas las configs — por Modelo")
-
-        avg_model = df_c_f.groupby(["model", "generation"], as_index=False)[sel_metric].mean()
-
-        ch_avg = (
-            alt.Chart(avg_model)
-            .mark_line(strokeWidth=3)
-            .encode(
-                x=alt.X("generation:Q", title="Generación"),
-                y=alt.Y(f"{sel_metric}:Q", title=f"{sel_metric_label} (media)",
-                        scale=alt.Scale(zero=False)),
-                color=alt.Color("model:N", title="Modelo",
-                                scale=alt.Scale(scheme="tableau10")),
-                tooltip=["model:N", "generation:Q",
-                         alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
-            )
-            .properties(height=380)
-            .interactive()
-        )
-        st.altair_chart(ch_avg, use_container_width=True)
-
-        # Comparación por stop_mode promediada
-        st.subheader(f"{sel_metric_label} por Stop Mode (promedio sobre modelos y configs)")
-
-        avg_stop = df_c_f.groupby(["stop_mode", "generation"], as_index=False)[sel_metric].mean()
-
-        ch_stop = (
-            alt.Chart(avg_stop)
-            .mark_line(strokeWidth=2)
-            .encode(
-                x=alt.X("generation:Q", title="Generación"),
-                y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
-                        scale=alt.Scale(zero=False)),
-                color=alt.Color("stop_mode:N", title="Stop Mode",
-                                scale=alt.Scale(scheme="set2")),
-                tooltip=["stop_mode:N", "generation:Q",
-                         alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
-            )
-            .properties(height=300)
-            .interactive()
-        )
-        st.altair_chart(ch_stop, use_container_width=True)
-
-        # Comparación por % reglas promediada
-        st.subheader(f"{sel_metric_label} por % Reglas (promedio sobre modelos y configs)")
-
-        avg_pct = df_c_f.groupby(["n_decision_rules_pct", "generation"], as_index=False)[sel_metric].mean()
-        avg_pct["pct_label"] = avg_pct["n_decision_rules_pct"].astype(str) + "%"
-
-        ch_pct = (
-            alt.Chart(avg_pct)
-            .mark_line(strokeWidth=2)
-            .encode(
-                x=alt.X("generation:Q", title="Generación"),
-                y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
-                        scale=alt.Scale(zero=False)),
-                color=alt.Color("pct_label:N", title="% Reglas",
-                                scale=alt.Scale(scheme="oranges")),
-                tooltip=["pct_label:N", "generation:Q",
-                         alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
-            )
-            .properties(height=300)
-            .interactive()
-        )
-        st.altair_chart(ch_pct, use_container_width=True)
-
-    # ── CTAB 3: Drilldown ─────────────────────────────────────────────────────
-    with ctab3:
-        st.subheader("🔬 Fija una configuración y compara modelos")
-
-        d1, d2, d3 = st.columns(3)
-
-        avail_ft = sorted(df_c_f["fitness_type"].unique())
-        d_ft = d1.selectbox("Fitness Type", avail_ft, key="d_ft")
-
-        avail_stop = sorted(
-            df_c_f[df_c_f["fitness_type"] == d_ft]["stop_mode"].unique()
-        )
-        d_stop = d2.selectbox("Stop Mode", avail_stop, key="d_stop")
-
-        avail_pct = sorted(
-            df_c_f[
-                (df_c_f["fitness_type"] == d_ft) & (df_c_f["stop_mode"] == d_stop)
-            ]["n_decision_rules_pct"].unique()
-        )
-        d_pct = d3.selectbox("% Reglas", avail_pct, key="d_pct")
-
-        drill = df_c_f[
-            (df_c_f["fitness_type"] == d_ft)
-            & (df_c_f["stop_mode"] == d_stop)
-            & (df_c_f["n_decision_rules_pct"] == d_pct)
+        df_cf = df_c[
+            (df_c["generation"] >= gen_range[0])
+            & (df_c["generation"] <= gen_range[1])
+            & (df_c["fitness_type"].isin(curve_fitness))
         ].copy()
 
-        if drill.empty:
-            st.info("No hay datos para esta combinación.")
-        else:
-            st.caption(
-                f"Config: **{d_ft}** · **{d_stop}** · **{d_pct}%** reglas  "
-                f"— Modelos: {', '.join(sorted(drill['model'].unique()))}"
+        if df_cf.empty:
+            st.warning("No hay curvas para esta selección.")
+            st.stop()
+
+        # ── SUB-TABS ──────────────────────────────────────────────────────────
+        ctab1, ctab2, ctab3 = st.tabs([
+            "🌐 Todas las Curvas",
+            "📉 Promedios y Factores",
+            "🔬 Drilldown por Config",
+        ])
+
+        # ── CTAB 1: Todas las curvas ───────────────────────────────────────────
+        with ctab1:
+            st.subheader(f"{sel_metric_label} — todas las configuraciones")
+            st.caption("Clic en el modelo de la leyenda para resaltar sus curvas.")
+
+            sel = alt.selection_point(fields=["model"], bind="legend")
+
+            base = alt.Chart(df_cf).encode(
+                x=alt.X("generation:Q", title="Generación"),
+                y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
+                        scale=alt.Scale(zero=False)),
+                color=alt.Color("model:N", title="Modelo", scale=MODEL_COLORS),
+                detail="model_config:N",
+                opacity=alt.condition(sel, alt.value(0.8), alt.value(0.06)),
+                tooltip=[
+                    "model:N", "fitness_type:N", "stop_mode:N",
+                    alt.Tooltip("n_decision_rules_pct:O", title="% Reglas"),
+                    alt.Tooltip(f"{sel_metric}:Q", format=".4f"),
+                    "generation:Q",
+                ],
             )
 
-            def make_drill_chart(data, y_field, y_title):
-                return (
-                    alt.Chart(data)
+            all_curves = (
+                base.mark_line(strokeWidth=1.2)
+                + base.mark_circle(size=1).add_params(sel)
+            ).properties(height=420).interactive()
+
+            st.altair_chart(all_curves, use_container_width=True)
+
+            # Mini-charts de las 4 métricas en paralelo
+            st.subheader("Curva promedio por modelo — las cuatro métricas")
+            m_cols = st.columns(4)
+            for col, (lbl, m) in zip(m_cols, CURVE_METRICS.items()):
+                avg = df_cf.groupby(["model", "generation"], as_index=False)[m].mean()
+                mini = (
+                    alt.Chart(avg)
                     .mark_line(strokeWidth=2.5)
                     .encode(
-                        x=alt.X("generation:Q", title="Generación"),
-                        y=alt.Y(f"{y_field}:Q", title=y_title,
-                                scale=alt.Scale(zero=False)),
-                        color=alt.Color("model:N", title="Modelo",
-                                        scale=alt.Scale(scheme="tableau10")),
+                        x=alt.X("generation:Q", title="Gen."),
+                        y=alt.Y(f"{m}:Q", title=lbl, scale=alt.Scale(zero=False)),
+                        color=alt.Color("model:N", legend=None, scale=MODEL_COLORS),
                         tooltip=["model:N", "generation:Q",
-                                 alt.Tooltip(f"{y_field}:Q", format=".4f")],
+                                 alt.Tooltip(f"{m}:Q", format=".4f")],
+                    )
+                    .properties(height=210, title=lbl)
+                    .interactive()
+                )
+                col.altair_chart(mini, use_container_width=True)
+
+        # ── CTAB 2: Promedios por factor ───────────────────────────────────────
+        with ctab2:
+            st.subheader(f"Promedio de {sel_metric_label} por Modelo")
+
+            avg_model = df_cf.groupby(["model", "generation"], as_index=False)[sel_metric].mean()
+            ch_model = (
+                alt.Chart(avg_model)
+                .mark_line(strokeWidth=3)
+                .encode(
+                    x=alt.X("generation:Q", title="Generación"),
+                    y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
+                            scale=alt.Scale(zero=False)),
+                    color=alt.Color("model:N", title="Modelo", scale=MODEL_COLORS),
+                    tooltip=["model:N", "generation:Q",
+                             alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
+                )
+                .properties(height=320)
+                .interactive()
+            )
+            st.altair_chart(ch_model, use_container_width=True)
+
+            f1, f2 = st.columns(2)
+
+            with f1:
+                st.subheader("Por Stop Mode")
+                avg_stop = df_cf.groupby(["stop_mode", "generation"], as_index=False)[sel_metric].mean()
+                ch_stop = (
+                    alt.Chart(avg_stop)
+                    .mark_line(strokeWidth=2)
+                    .encode(
+                        x=alt.X("generation:Q", title="Generación"),
+                        y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
+                                scale=alt.Scale(zero=False)),
+                        color=alt.Color("stop_mode:N", title="Stop Mode",
+                                        scale=alt.Scale(scheme="set2")),
+                        tooltip=["stop_mode:N", "generation:Q",
+                                 alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
                     )
                     .properties(height=270)
                     .interactive()
                 )
+                st.altair_chart(ch_stop, use_container_width=True)
 
-            m1, m2, m3 = st.columns(3)
-            m1.subheader("Accuracy (%)")
-            m1.altair_chart(make_drill_chart(drill, "accuracy", "Accuracy (%)"),
-                            use_container_width=True)
-            m2.subheader("Fitness")
-            m2.altair_chart(make_drill_chart(drill, "fitness", "Fitness"),
-                            use_container_width=True)
-            m3.subheader("MSE")
-            m3.altair_chart(make_drill_chart(drill, "mse", "MSE"),
-                            use_container_width=True)
+            with f2:
+                st.subheader("Por % Reglas")
+                avg_pct = df_cf.groupby(["n_decision_rules_pct", "generation"], as_index=False)[sel_metric].mean()
+                avg_pct["pct_label"] = avg_pct["n_decision_rules_pct"].astype(str) + "%"
+                ch_pct = (
+                    alt.Chart(avg_pct)
+                    .mark_line(strokeWidth=2)
+                    .encode(
+                        x=alt.X("generation:Q", title="Generación"),
+                        y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
+                                scale=alt.Scale(zero=False)),
+                        color=alt.Color("pct_label:N", title="% Reglas",
+                                        sort=[f"{p}%" for p in sorted(all_pct)],
+                                        scale=alt.Scale(scheme="oranges")),
+                        tooltip=["pct_label:N", "generation:Q",
+                                 alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
+                    )
+                    .properties(height=270)
+                    .interactive()
+                )
+                st.altair_chart(ch_pct, use_container_width=True)
 
-            # Velocidad de convergencia
-            st.subheader("⚡ Velocidad de Convergencia — Gen. donde se alcanza el 98% del Accuracy final")
+            st.subheader("Por Fitness Type")
+            avg_ft = df_cf.groupby(["fitness_type", "generation"], as_index=False)[sel_metric].mean()
+            ch_ft = (
+                alt.Chart(avg_ft)
+                .mark_line(strokeWidth=2)
+                .encode(
+                    x=alt.X("generation:Q", title="Generación"),
+                    y=alt.Y(f"{sel_metric}:Q", title=sel_metric_label,
+                            scale=alt.Scale(zero=False)),
+                    color=alt.Color("fitness_type:N", title="Fitness Type",
+                                    scale=FITNESS_COLORS),
+                    tooltip=["fitness_type:N", "generation:Q",
+                             alt.Tooltip(f"{sel_metric}:Q", format=".4f")],
+                )
+                .properties(height=280)
+                .interactive()
+            )
+            st.altair_chart(ch_ft, use_container_width=True)
 
-            conv_rows = []
-            for model in sorted(drill["model"].unique()):
-                m_data = drill[drill["model"] == model].sort_values("generation")
-                if len(m_data) >= 3:
-                    final_acc = m_data["accuracy"].iloc[-1]
-                    threshold = final_acc * 0.98
-                    conv_gen_row = m_data[m_data["accuracy"] >= threshold]
-                    conv_gen = int(conv_gen_row["generation"].min()) if not conv_gen_row.empty else None
-                    final_fit = m_data["fitness"].iloc[-1]
-                    final_mse = m_data["mse"].iloc[-1]
+        # ── CTAB 3: Drilldown ──────────────────────────────────────────────────
+        with ctab3:
+            st.subheader("Fija una configuración y compara modelos")
+            st.caption("Selecciona fitness type, stop mode y % reglas para ver cómo evoluciona cada modelo.")
+
+            d1, d2, d3 = st.columns(3)
+
+            avail_ft   = sorted(df_cf["fitness_type"].unique())
+            d_ft       = d1.selectbox("Fitness Type", avail_ft)
+
+            avail_stop = sorted(df_cf[df_cf["fitness_type"] == d_ft]["stop_mode"].unique())
+            d_stop     = d2.selectbox("Stop Mode", avail_stop)
+
+            avail_pct  = sorted(
+                df_cf[(df_cf["fitness_type"] == d_ft) & (df_cf["stop_mode"] == d_stop)]
+                ["n_decision_rules_pct"].unique()
+            )
+            d_pct = d3.selectbox("% Reglas", avail_pct)
+
+            drill = df_cf[
+                (df_cf["fitness_type"] == d_ft)
+                & (df_cf["stop_mode"] == d_stop)
+                & (df_cf["n_decision_rules_pct"] == d_pct)
+            ].copy()
+
+            if drill.empty:
+                st.info("No hay datos para esta combinación.")
+            else:
+                models_present = sorted(drill["model"].unique())
+                st.caption(
+                    f"**{d_ft}** · **{d_stop}** · **{d_pct}%** reglas — "
+                    f"Modelos: {', '.join(models_present)}"
+                )
+
+                def drill_chart(y_field, y_title):
+                    return (
+                        alt.Chart(drill)
+                        .mark_line(strokeWidth=2.5)
+                        .encode(
+                            x=alt.X("generation:Q", title="Generación"),
+                            y=alt.Y(f"{y_field}:Q", title=y_title,
+                                    scale=alt.Scale(zero=False)),
+                            color=alt.Color("model:N", title="Modelo", scale=MODEL_COLORS),
+                            tooltip=["model:N", "generation:Q",
+                                     alt.Tooltip(f"{y_field}:Q", format=".4f")],
+                        )
+                        .properties(height=240)
+                        .interactive()
+                    )
+
+                # 2×2 grid con las 4 métricas
+                row1_c1, row1_c2 = st.columns(2)
+                row2_c1, row2_c2 = st.columns(2)
+
+                row1_c1.subheader("Accuracy (%)")
+                row1_c1.altair_chart(drill_chart("mean_accuracy",     "Accuracy (%)"),   use_container_width=True)
+                row1_c2.subheader("Fitness")
+                row1_c2.altair_chart(drill_chart("mean_fitness",      "Fitness"),        use_container_width=True)
+                row2_c1.subheader("MSE Chance")
+                row2_c1.altair_chart(drill_chart("mean_error_chance",  "MSE Chance"),    use_container_width=True)
+                row2_c2.subheader("MSE Utility")
+                row2_c2.altair_chart(drill_chart("mean_error_utility", "MSE Utility"),   use_container_width=True)
+
+                # Velocidad de convergencia
+                st.subheader("Velocidad de convergencia — gen. donde se alcanza el 98% del accuracy final")
+
+                conv_rows = []
+                for model in models_present:
+                    md = drill[drill["model"] == model].sort_values("generation")
+                    if len(md) < 3:
+                        continue
+                    final_acc = md["mean_accuracy"].iloc[-1]
+                    hit = md[md["mean_accuracy"] >= final_acc * 0.98]
                     conv_rows.append({
-                        "Modelo": model,
-                        "Gen. Convergencia (98%)": conv_gen,
-                        "Accuracy Final": round(final_acc, 2),
-                        "Fitness Final": round(final_fit, 4),
-                        "MSE Final": round(final_mse, 4),
+                        "Modelo":                  model,
+                        "Gen. Conv. (98%)":        int(hit["generation"].min()) if not hit.empty else None,
+                        "Accuracy Final":          round(final_acc, 2),
+                        "Fitness Final":           round(md["mean_fitness"].iloc[-1], 4),
+                        "MSE Chance Final":        round(md["mean_error_chance"].iloc[-1], 4),
+                        "MSE Utility Final":       round(md["mean_error_utility"].iloc[-1], 4),
                     })
 
-            if conv_rows:
-                conv_df = pd.DataFrame(conv_rows)
-                st.dataframe(conv_df, use_container_width=True, hide_index=True)
+                if conv_rows:
+                    conv_df = pd.DataFrame(conv_rows)
+                    st.dataframe(conv_df, use_container_width=True, hide_index=True)
 
-                conv_bar = (
-                    alt.Chart(conv_df.dropna(subset=["Gen. Convergencia (98%)"]))
-                    .mark_bar()
-                    .encode(
-                        x=alt.X("Modelo:N", title="Modelo"),
-                        y=alt.Y("Gen. Convergencia (98%):Q",
-                                title="Generación de Convergencia"),
-                        color=alt.Color("Modelo:N",
-                                        scale=alt.Scale(scheme="tableau10")),
-                        tooltip=["Modelo:N", "Gen. Convergencia (98%):Q",
-                                 alt.Tooltip("Accuracy Final:Q", format=".2f")],
+                    conv_bar = (
+                        alt.Chart(conv_df.dropna(subset=["Gen. Conv. (98%)"]))
+                        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+                        .encode(
+                            x=alt.X("Modelo:N"),
+                            y=alt.Y("Gen. Conv. (98%):Q", title="Generación de Convergencia"),
+                            color=alt.Color("Modelo:N", scale=MODEL_COLORS),
+                            tooltip=["Modelo:N", "Gen. Conv. (98%):Q",
+                                     alt.Tooltip("Accuracy Final:Q", format=".2f")],
+                        )
+                        .properties(height=230)
                     )
-                    .properties(height=250)
-                )
-                st.altair_chart(conv_bar, use_container_width=True)
+                    st.altair_chart(conv_bar, use_container_width=True)

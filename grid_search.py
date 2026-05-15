@@ -8,8 +8,11 @@ con N repeticiones por combinación, y guarda:
 
 Uso:
     py grid_search.py
+    py grid_search.py --optimizer_type egda
+    py grid_search.py --xdsl_path ruta/red.xdsl --rules_csv ruta/reglas.csv --min_max_ut True --optimizer_type umda
 """
 
+import argparse
 import os
 import sys
 import csv
@@ -47,7 +50,7 @@ TARGET_FITNESS = 1e-5
 # --- Grid de búsqueda ---
 # n_decision_rules se calcula como % del total de reglas
 RULES_PERCENTAGES = [5, 10, 20, 40, 60]  # porcentajes
-FITNESS_TYPES = ["binary", "margin", "softmax", "regret_reg", "regret" "entropy"]
+FITNESS_TYPES = ["binary", "margin", "softmax", "regret_reg", "regret", "entropy"]
 STOP_MODES = ["top10", "top30", "top70", "top90"]
 
 # --- Repeticiones ---
@@ -228,18 +231,47 @@ def append_curves_rows(filepath, rows):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    parser = argparse.ArgumentParser(description='Grid Search sistemático para IDRecovery.')
+    parser.add_argument('--xdsl_path', default=None, help='Ruta al fichero .xdsl')
+    parser.add_argument('--rules_csv', default=None, help='Ruta al CSV de reglas')
+    parser.add_argument('--min_max_ut', type=lambda x: x.lower() not in ('false', '0', 'no'),
+                        default=None, help='Normalizar utilidades (True/False)')
+    parser.add_argument('--optimizer_type', default=None, choices=['umda', 'egda'],
+                        help='Tipo de optimizador')
+    args = parser.parse_args()
+
+    # Construir config efectiva: valores del script como base, args sobreescriben si se pasan
+    effective_config = dict(BASE_CONFIG)
+    if args.xdsl_path is not None:
+        effective_config['xdsl_path'] = args.xdsl_path
+    if args.rules_csv is not None:
+        effective_config['rules_csv'] = args.rules_csv
+    if args.min_max_ut is not None:
+        effective_config['min_max_ut'] = args.min_max_ut
+    if args.optimizer_type is not None:
+        effective_config['optimizer_type'] = args.optimizer_type
+
+    effective_rules_csv = effective_config['rules_csv']
+    suffix = f"_{effective_config['optimizer_type'].upper()}"
+    results_csv = os.path.join(BASE_FOLDER, f"grid_search_results{suffix}.csv")
+    curves_csv = os.path.join(BASE_FOLDER, f"grid_search_curves{suffix}.csv")
+
     print("=" * 70)
     print("  GRID SEARCH — IDRecovery")
     print("=" * 70)
-    
+    print(f"Optimizador: {effective_config['optimizer_type'].upper()}")
+    print(f"xdsl_path:   {effective_config['xdsl_path']}")
+    print(f"rules_csv:   {effective_rules_csv}")
+    print(f"min_max_ut:  {effective_config['min_max_ut']}")
+
     # Contar reglas totales
-    total_rules = count_total_rules(RULES_CSV)
+    total_rules = count_total_rules(effective_rules_csv)
     print(f"Total de reglas en el dataset: {total_rules}")
-    
+
     # Calcular valores de n_decision_rules
     rules_values = [(pct, compute_n_rules(total_rules, pct)) for pct in RULES_PERCENTAGES]
     print(f"n_decision_rules (pct -> n): {rules_values}")
-    
+
     # Generar todas las combinaciones
     grid = list(itertools.product(
         FITNESS_TYPES,
@@ -252,13 +284,13 @@ def main():
     print(f"Total de ejecuciones: {total_runs}")
     print(f"Repeticiones por combinación: {N_REPETITIONS}")
     print()
-    
+
     # Preparar CSVs
-    ensure_csv_header(RESULTS_CSV, RESULTS_HEADER)
-    ensure_csv_header(CURVES_CSV, CURVES_HEADER)
-    
+    ensure_csv_header(results_csv, RESULTS_HEADER)
+    ensure_csv_header(curves_csv, CURVES_HEADER)
+
     # Cargar combinaciones ya completadas
-    completed = get_completed_combinations(RESULTS_CSV)
+    completed = get_completed_combinations(results_csv)
     print(f"Combinaciones ya completadas: {len(completed)}")
     print("=" * 70)
     print()
@@ -290,20 +322,20 @@ def main():
             print(f"\n  > Repetición {rep + 1}/{N_REPETITIONS} (seed={seed})")
             
             config = {
-                **BASE_CONFIG,
+                **effective_config,
                 'n_decision_rules': n_rules,
                 'fitness_type': fitness_type,
                 'stop_mode': stop_mode,
                 'random_seed': seed,
             }
-            
+
             exp, results = run_single_experiment(config, SIZE_GEN, MAX_ITER, TARGET_FITNESS)
             experiments.append(exp)
             all_results.append(results)
-            
+
             print(f"    -> Parada en gen {results['stop_generation']} | "
-                  f"Mejor fitness: {results['final_fitness']:.6f} | "
-                  f"Mejor accuracy: {results['final_accuracy']:.1f}%")
+                  f"Mejor fitness: {results['best_fitness']:.6f} | "
+                  f"Mejor accuracy: {results['best_accuracy']:.1f}%")
         
         combo_elapsed = time.time() - combo_start
         
@@ -326,9 +358,7 @@ def main():
             'n_decision_rules_pct': rules_pct,
             'total_rules': total_rules,
             
-            'stop_gen_mejor': min(stop_gens),
-            'stop_gen_peor': max(stop_gens),
-            'stop_gen_media': f"{np.mean(stop_gens):.2f}",
+            'stop_gen_mean': f"{np.mean(stop_gens):.2f}",
             'stop_gen_std': f"{np.std(stop_gens):.2f}",
             'stop_gen_min': min(stop_gens),
             'stop_gen_max': max(stop_gens),
@@ -358,8 +388,8 @@ def main():
             'mean_mse_utility_max':  f"{max(mean_mse_utility):.6f}",
         }
 
-        append_results_row(RESULTS_CSV, row)
-        
+        append_results_row(results_csv, row)
+
         # --- Calcular y guardar curvas promediadas ---
         avg_curves = average_histories(experiments)
         curve_rows = []
@@ -376,7 +406,7 @@ def main():
                 'mean_error_utility': f"{point['mean_error_utility']:.6f}",
             })
 
-        append_curves_rows(CURVES_CSV, curve_rows)
+        append_curves_rows(curves_csv, curve_rows)
         
         combo_done += 1
         total_elapsed = time.time() - global_start
@@ -390,8 +420,8 @@ def main():
     
     print(f"\n{'=' * 70}")
     print(f"  GRID SEARCH FINALIZADO")
-    print(f"  Resultados: {RESULTS_CSV}")
-    print(f"  Curvas:     {CURVES_CSV}")
+    print(f"  Resultados: {results_csv}")
+    print(f"  Curvas:     {curves_csv}")
     print(f"  Tiempo total: {(time.time() - global_start)/60:.1f} minutos")
     print(f"{'=' * 70}")
 
