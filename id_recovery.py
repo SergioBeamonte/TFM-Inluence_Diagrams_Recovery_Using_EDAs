@@ -13,6 +13,7 @@ import pysmile
 import numpy as np
 import random
 import csv
+from scipy.special import expit
 from EDAspy.optimization import UMDAc, EGNA, EMNA
 
 
@@ -41,16 +42,39 @@ class IDRecovery:
         self.utility_nodes = self._get_nodes(["UTILITY"])
         
         self.original_defs = {
-            name: np.array(self.net.get_node_definition(self.net.get_node(name))) 
+            name: np.array(self.net.get_node_definition(self.net.get_node(name)))
             for name in self.chance_nodes + self.utility_nodes
         }
+
+        # Reescala las utilidades originales al mismo rango [u_min, u_max] que usa el decodificador,
+        # para que real_error compare escalas equivalentes (las decisiones óptimas son invariantes
+        # a transformaciones afines positivas, así que esto sólo normaliza la escala numérica).
+        # El min/max se toma GLOBAL sobre toda la red para preservar el orden relativo entre nodos.
+        self.original_defs_scaled = {name: arr for name, arr in self.original_defs.items()
+                                     if name in self.chance_nodes}
+        if self.utility_nodes:
+            all_u = np.concatenate([self.original_defs[n].flatten() for n in self.utility_nodes])
+            self.orig_u_min, self.orig_u_max = float(all_u.min()), float(all_u.max())
+            span = self.orig_u_max - self.orig_u_min
+            for name in self.utility_nodes:
+                if span > 0:
+                    rescaled = (self.original_defs[name] - self.orig_u_min) / span \
+                               * (self.u_max - self.u_min) + self.u_min
+                else:
+                    rescaled = np.full_like(self.original_defs[name],
+                                            (self.u_max + self.u_min) / 2, dtype=float)
+                self.original_defs_scaled[name] = rescaled
 
         self.specs = self._build_specs()
         self.total_vars = sum(s['free_size'] for s in self.specs)
         
         self.all_rules = self._compile_rules(rules_csv)
         
+        # Sembramos tanto random (para el sampleo de reglas) como numpy.random (para la
+        # inicialización y muestreo interno de EDAspy, que usa np.random globalmente).
+        self.random_seed = random_seed
         random.seed(random_seed)
+        np.random.seed(random_seed)
         if self.n_decision_rules > 0 and self.n_decision_rules < len(self.all_rules):
             self.train_rules = random.sample(self.all_rules, self.n_decision_rules)
         else:
@@ -63,12 +87,13 @@ class IDRecovery:
         
         self.eval_count = 0
         self.current_gen = 1
-        
+        self.evals_this_gen = 0
+
         self.gen_individuals = []
         self.gen_fitness = []
         self.gen_errors = []
-        self.gen_accuracies = [] 
-        
+        self.gen_accuracies = []
+
         self.history = []
 
     def _get_nodes(self, types):
@@ -129,16 +154,17 @@ class IDRecovery:
             pos += s['free_size']
             
             if s['kind'] == 'chance':
-                res = np.exp(raw.reshape(s['shape']))
+                raw_r = raw.reshape(s['shape'])
+                res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
                 val = (res / res.sum(axis=-1, keepdims=True)).flatten()
             else:
                 val = np.zeros(s['size'])
-                val[s['mask']] = (1 / (1 + np.exp(-raw))) * (self.u_max - self.u_min) + self.u_min
-                for idx, fv in s['fixed']: 
+                val[s['mask']] = expit(raw) * (self.u_max - self.u_min) + self.u_min
+                for idx, fv in s['fixed']:
                     val[np.ravel_multi_index(idx, s['shape'])] = fv
 
             decoded_vals[s['name']] = val
-            real_error += np.mean((val - self.original_defs[s['name']])**2)
+            real_error += np.mean((val - self.original_defs_scaled[s['name']])**2)
             
         return decoded_vals, real_error
 
@@ -221,13 +247,19 @@ class IDRecovery:
         accuracy = (rules_fulfilled / len(self.all_rules)) * 100
             
         self.gen_individuals.append(vector)
-        self.gen_fitness.append(penalty_score) 
+        self.gen_fitness.append(penalty_score)
         self.gen_errors.append(real_error)
         self.gen_accuracies.append(accuracy)
         self.eval_count += 1
-        
+        self.evals_this_gen += 1
+
         # --- FINAL DE GENERACIÓN ---
-        if hasattr(self, 'size_gen') and self.eval_count % self.size_gen == 0:
+        # EDAspy llama al callback exactamente size_gen veces por generación (los élites se
+        # almacenan aparte en elite_temp y no se reevalúan), así que el contador per-gen
+        # alcanza size_gen al final de cada bloque. Usar un contador explícito en lugar de
+        # eval_count % size_gen es más robusto frente a llamadas extra al fitness (p.ej. la
+        # evaluación final tras minimize()).
+        if hasattr(self, 'size_gen') and self.evals_this_gen >= self.size_gen:
             
             self.history.append({
                 'gen': self.current_gen,
@@ -279,8 +311,9 @@ class IDRecovery:
             value_to_check = sorted_fitness[target_idx]
             
             self.current_gen += 1
+            self.evals_this_gen = 0
             self.gen_individuals, self.gen_fitness, self.gen_errors, self.gen_accuracies = [], [], [], []
-            
+
             if hasattr(self, 'target_fitness') and value_to_check <= self.target_fitness:
                 raise StopIteration(f"{msg_parada} un Score <= {self.target_fitness:.4f}")
             
