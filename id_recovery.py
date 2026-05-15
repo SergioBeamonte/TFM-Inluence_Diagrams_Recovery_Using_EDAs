@@ -179,6 +179,17 @@ class IDRecovery:
                     exp_utils = np.exp(np.array(utils) - max_u) 
                     prob_rule = exp_utils[r['a_idx']] / np.sum(exp_utils)
                     penalty_score += -np.log(prob_rule + 1e-9) 
+
+                elif self.fitness_type == 'entropy':
+                    exp_utils = np.exp(np.array(utils) - max_u) 
+                    probs = exp_utils / np.sum(exp_utils) 
+                    prob_rule = probs[r['a_idx']]
+    
+                    nll_loss = -np.log(prob_rule + 1e-9)
+                    entropy = -np.sum(probs * np.log(probs + 1e-9))
+    
+                    alpha = 0.1 
+                    penalty_score += nll_loss + (alpha * entropy)
                     
                 elif self.fitness_type == 'regret_reg':
                     penalty_score += (max_u - rule_u)
@@ -226,7 +237,20 @@ class IDRecovery:
             })
             
             sorted_fitness = np.sort(self.gen_fitness)
+            mejor_fitness_generacion = sorted_fitness[0]
             
+            # --- CHEQUEO DE ESTANCAMIENTO (Solo para distribuciones) ---
+            if self.fitness_type in ['softmax', 'entropy']:
+                if mejor_fitness_generacion < (self.best_stagnation_fitness - self.min_delta):
+                    self.best_stagnation_fitness = mejor_fitness_generacion
+                    self.stagnation_counter = 0 # Resetea la paciencia
+                else:
+                    self.stagnation_counter += 1 # Gasta paciencia
+                    
+                if self.stagnation_counter >= self.patience:
+                    raise StopIteration(f"Estancamiento: {self.patience} generaciones seguidas sin mejorar al menos {self.min_delta}.")
+            
+            # --- LÓGICA DE PARADA ORIGINAL ---
             if self.stop_mode == 'top10':
                 target_idx = max(1, int(self.size_gen * 0.10)) - 1
                 msg_parada = f"El Top 10% (>={target_idx+1} individuos) alcanzó"
@@ -258,13 +282,34 @@ class IDRecovery:
             self.gen_individuals, self.gen_fitness, self.gen_errors, self.gen_accuracies = [], [], [], []
             
             if hasattr(self, 'target_fitness') and value_to_check <= self.target_fitness:
-                raise StopIteration(f"{msg_parada} un Score <= {self.target_fitness}")
+                raise StopIteration(f"{msg_parada} un Score <= {self.target_fitness:.4f}")
             
         return penalty_score
 
-    def run(self, g=100, i=100, target_fitness=1e-5):
+    def run(self, g=100, i=100, target_fitness=1e-5, patience=10, min_delta=1e-4):
         self.size_gen = g
-        self.target_fitness = 0.0 if self.fitness_type == 'binary' else target_fitness
+        
+        # --- INICIALIZAR VARIABLES DE ESTANCAMIENTO ---
+        self.patience = patience
+        self.min_delta = min_delta
+        self.stagnation_counter = 0
+        self.best_stagnation_fitness = float('inf')
+        
+        # --- AJUSTE DINÁMICO DE TARGET FITNESS ---
+        if self.fitness_type == 'binary':
+            self.target_fitness = 0.0
+            
+        elif self.fitness_type in ['softmax', 'entropy']:
+            # Buscamos un ~99% de confianza media. -log(0.99) = 0.01005
+            confianza_deseada = 0.99
+            nll_esperado = -np.log(confianza_deseada)
+            margen_entropia = (self.alpha * 0.05) if self.fitness_type == 'entropy' else 0.0
+            
+            self.target_fitness = len(self.train_rules) * (nll_esperado + margen_entropia)
+            print(f"Meta de Fitness ajustada para {self.fitness_type.upper()}: <= {self.target_fitness:.4f}")
+            
+        else:
+            self.target_fitness = target_fitness
         
         self.best_historical_ind = None
         self.best_historical_fitness = float('inf')
@@ -280,7 +325,6 @@ class IDRecovery:
         lower_bounds = np.array(lower_bounds)
         upper_bounds = np.array(upper_bounds)
 
-        # Configuración común de parámetros
         optimizer_kwargs = {
             'size_gen': g,
             'max_iter': i,
@@ -293,7 +337,6 @@ class IDRecovery:
             'disp': False
         }
 
-        # Selección dinámica del optimizador
         if self.optimizer_type == 'umda':
             optimizer = UMDAc(**optimizer_kwargs)
         elif self.optimizer_type == 'egna':
@@ -301,14 +344,14 @@ class IDRecovery:
         elif self.optimizer_type == 'emna':
             optimizer = EMNA(**optimizer_kwargs)
         else:
-            raise ValueError(f"Optimizador '{self.optimizer_type}' no reconocido. Usa 'umda', 'egna' o 'emna'.")
+            raise ValueError(f"Optimizador '{self.optimizer_type}' no reconocido.")
         
-        print("Iniciando optimización. Puedes usar visualizar_historial() al terminar.")
+        print("Iniciando optimización...")
         
         try:
             res = optimizer.minimize(self.fitness)
             mejor_vector = res.best_ind
-            print("Optimización terminada por fin natural (max_iter o dead_iter).")
+            print("Optimización terminada por fin natural (max_iter o dead_iter interno del optimizador).")
         except StopIteration as e:
             print(f"\n¡PARADA ANTICIPADA! {e}")
             mejor_vector = self.best_historical_ind

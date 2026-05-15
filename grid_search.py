@@ -46,8 +46,8 @@ TARGET_FITNESS = 1e-5
 
 # --- Grid de búsqueda ---
 # n_decision_rules se calcula como % del total de reglas
-RULES_PERCENTAGES = [5, 10, 20, 30, 40]  # porcentajes
-FITNESS_TYPES = ["regret", "binary", "margin", "softmax", "regret_reg"]
+RULES_PERCENTAGES = [5, 10, 20, 40, 60]  # porcentajes
+FITNESS_TYPES = ["binary", "margin", "softmax", "regret_reg", "regret" "entropy"]
 STOP_MODES = ["top10", "top30", "top70", "top90"]
 
 # --- Repeticiones ---
@@ -88,68 +88,52 @@ def compute_n_rules(total_rules, percentage):
 
 
 def run_single_experiment(config, g, i, target_fitness):
-    """Ejecuta un único IDRecovery.run() y devuelve el objeto y resultados."""
+    """Ejecuta un único IDRecovery.run() y devuelve el objeto y resultados de la última gen."""
     from id_recovery import IDRecovery
     
     exp = IDRecovery(**config)
-    best_vector = exp.run(g=g, i=i, target_fitness=target_fitness)
+    exp.run(g=g, i=i, target_fitness=target_fitness)
     
-    # Extraer métricas de la última generación del historial
     if exp.history:
         last_gen = exp.history[-1]
-        stop_generation = last_gen['gen']
-        best_fitness = float(np.min(last_gen['fitness']))
-        mean_fitness = float(np.mean(last_gen['fitness']))
-        best_accuracy = float(np.max(last_gen['accuracies']))
-        mean_accuracy = float(np.mean(last_gen['accuracies']))
+        results = {
+            'stop_generation': last_gen['gen'],
+            'final_fitness': float(np.min(last_gen['fitness'])),
+            'final_accuracy': float(np.max(last_gen['accuracies'])),
+            'final_error': float(np.min(last_gen['errors'])) # Asumiendo que 'errors' es tu MSE
+        }
     else:
-        # Si no hay historial (paró en la primera evaluación)
-        stop_generation = 0
-        best_fitness = float(exp.best_historical_fitness) if exp.best_historical_fitness != float('inf') else float('nan')
-        mean_fitness = float('nan')
-        best_accuracy = float('nan')
-        mean_accuracy = float('nan')
-    
-    results = {
-        'stop_generation': stop_generation,
-        'best_fitness': best_fitness,
-        'mean_fitness': mean_fitness,
-        'best_accuracy': best_accuracy,
-        'mean_accuracy': mean_accuracy,
-    }
+        results = {
+            'stop_generation': 0,
+            'final_fitness': float('nan'),
+            'final_accuracy': float('nan'),
+            'final_error': float('nan')
+        }
     
     return exp, results
 
 
 def average_histories(experiments):
-    """
-    Promedia los historiales de N experimentos (igual que BatchExperimenter._average_histories).
-    Devuelve una lista de dicts con las curvas promediadas.
-    """
     max_gens = max(len(exp.history) for exp in experiments)
     avg_history = []
     
     for gen_idx in range(max_gens):
-        gen_fitness_list = []
-        gen_errors_list = []
-        gen_accs_list = []
+        fits, accs, errs = [], [], []
         
         for exp in experiments:
             hist_idx = min(gen_idx, len(exp.history) - 1)
             gen_data = exp.history[hist_idx]
             
-            # Tomamos la media de la población para esa generación
-            gen_fitness_list.append(float(np.mean(gen_data['fitness'])))
-            gen_errors_list.append(float(np.mean(gen_data['errors'])))
-            gen_accs_list.append(float(np.mean(gen_data['accuracies'])))
-        
+            # Cogemos el rendimiento promedio de la población en esa generación
+            fits.append(float(np.mean(gen_data['fitness'])))
+            accs.append(float(np.mean(gen_data['accuracies'])))
+            errs.append(float(np.mean(gen_data['errors'])))
+            
         avg_history.append({
             'generation': gen_idx + 1,
-            'mean_fitness': float(np.mean(gen_fitness_list)),
-            'mean_accuracy': float(np.mean(gen_accs_list)),
-            'mean_error': float(np.mean(gen_errors_list)),
-            'fitness_std': float(np.std(gen_fitness_list)),
-            'accuracy_std': float(np.std(gen_accs_list)),
+            'fitness': float(np.mean(fits)),
+            'accuracy': float(np.mean(accs)),
+            'mse': float(np.mean(errs)),
         })
     
     return avg_history
@@ -160,19 +144,16 @@ def average_histories(experiments):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 RESULTS_HEADER = [
-    'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
-    'total_rules',
-    'stop_gen_mean', 'stop_gen_std', 'stop_gen_min', 'stop_gen_max',
-    'best_fitness_mean', 'best_fitness_std',
-    'mean_accuracy_mean', 'mean_accuracy_std',
-    'best_accuracy_mean', 'best_accuracy_std', 'best_accuracy_min', 'best_accuracy_max',
+    'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct', 'total_rules',
+    'stop_gen_mejor', 'stop_gen_peor', 'stop_gen_media', 'stop_gen_std',
+    'fitness_mejor', 'fitness_peor', 'fitness_media', 'fitness_std',
+    'accuracy_mejor', 'accuracy_peor', 'accuracy_media', 'accuracy_std',
+    'error_mejor', 'error_peor', 'error_media', 'error_std'
 ]
 
 CURVES_HEADER = [
     'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
-    'stop_gen_mean', 'stop_gen_std', 'stop_gen_min', 'stop_gen_max',
-    'generation', 'mean_fitness', 'mean_accuracy', 'mean_error',
-    'fitness_std', 'accuracy_std',
+    'generation', 'fitness', 'accuracy', 'mse'
 ]
 
 
@@ -277,16 +258,16 @@ def main():
             all_results.append(results)
             
             print(f"    -> Parada en gen {results['stop_generation']} | "
-                  f"Mejor fitness: {results['best_fitness']:.6f} | "
-                  f"Mejor accuracy: {results['best_accuracy']:.1f}%")
+                  f"Mejor fitness: {results['final_fitness']:.6f} | "
+                  f"Mejor accuracy: {results['final_accuracy']:.1f}%")
         
         combo_elapsed = time.time() - combo_start
         
         # --- Calcular estadísticas agregadas ---
         stop_gens = [r['stop_generation'] for r in all_results]
-        best_fits = [r['best_fitness'] for r in all_results]
-        mean_accs = [r['mean_accuracy'] for r in all_results]
-        best_accs = [r['best_accuracy'] for r in all_results]
+        fits = [r['final_fitness'] for r in all_results]
+        accs = [r['final_accuracy'] for r in all_results]
+        errs = [r['final_error'] for r in all_results]
         
         row = {
             'fitness_type': fitness_type,
@@ -294,25 +275,32 @@ def main():
             'n_decision_rules': n_rules,
             'n_decision_rules_pct': rules_pct,
             'total_rules': total_rules,
-            'stop_gen_mean': f"{np.mean(stop_gens):.2f}",
+            
+            'stop_gen_mejor': min(stop_gens),
+            'stop_gen_peor': max(stop_gens),
+            'stop_gen_media': f"{np.mean(stop_gens):.2f}",
             'stop_gen_std': f"{np.std(stop_gens):.2f}",
-            'stop_gen_min': min(stop_gens),
-            'stop_gen_max': max(stop_gens),
-            'best_fitness_mean': f"{np.mean(best_fits):.6f}",
-            'best_fitness_std': f"{np.std(best_fits):.6f}",
-            'mean_accuracy_mean': f"{np.mean(mean_accs):.2f}",
-            'mean_accuracy_std': f"{np.std(mean_accs):.2f}",
-            'best_accuracy_mean': f"{np.mean(best_accs):.2f}",
-            'best_accuracy_std': f"{np.std(best_accs):.2f}",
-            'best_accuracy_min': f"{min(best_accs):.2f}",
-            'best_accuracy_max': f"{max(best_accs):.2f}",
+            
+            'fitness_mejor': f"{min(fits):.6f}",
+            'fitness_peor': f"{max(fits):.6f}",
+            'fitness_media': f"{np.mean(fits):.6f}",
+            'fitness_std': f"{np.std(fits):.6f}",
+            
+            'accuracy_mejor': f"{max(accs):.2f}",
+            'accuracy_peor': f"{min(accs):.2f}",
+            'accuracy_media': f"{np.mean(accs):.2f}",
+            'accuracy_std': f"{np.std(accs):.2f}",
+            
+            'error_mejor': f"{min(errs):.6f}",
+            'error_peor': f"{max(errs):.6f}",
+            'error_media': f"{np.mean(errs):.6f}",
+            'error_std': f"{np.std(errs):.6f}",
         }
         
         append_results_row(RESULTS_CSV, row)
         
         # --- Calcular y guardar curvas promediadas ---
         avg_curves = average_histories(experiments)
-        
         curve_rows = []
         for point in avg_curves:
             curve_rows.append({
@@ -320,16 +308,10 @@ def main():
                 'stop_mode': stop_mode,
                 'n_decision_rules': n_rules,
                 'n_decision_rules_pct': rules_pct,
-                'stop_gen_mean': f"{np.mean(stop_gens):.2f}",
-                'stop_gen_std': f"{np.std(stop_gens):.2f}",
-                'stop_gen_min': min(stop_gens),
-                'stop_gen_max': max(stop_gens),
                 'generation': point['generation'],
-                'mean_fitness': f"{point['mean_fitness']:.6f}",
-                'mean_accuracy': f"{point['mean_accuracy']:.2f}",
-                'mean_error': f"{point['mean_error']:.6f}",
-                'fitness_std': f"{point['fitness_std']:.6f}",
-                'accuracy_std': f"{point['accuracy_std']:.2f}",
+                'fitness': f"{point['fitness']:.6f}",
+                'accuracy': f"{point['accuracy']:.2f}",
+                'mse': f"{point['mse']:.6f}",
             })
         
         append_curves_rows(CURVES_CSV, curve_rows)
