@@ -425,9 +425,28 @@ with tab_curves:
 
             # Mini-charts de las 4 métricas en paralelo
             st.subheader(f"Curva promedio por {sel_color_label} — las cuatro métricas")
+            # Forward-fill cada curva individual hasta la gen. máxima antes de promediar,
+            # para que las curvas cortas (convergencia temprana) no arrastren la media a 0.
+            _all_gens = sorted(df_cf["generation"].unique())
+            _metric_cols = list(CURVE_METRICS.values())
+            _cat_cols_present = [c for c in _CATEGORICAL_COLS if c in df_cf.columns]
+            _fill_pieces = []
+            for _cfg, _grp in df_cf.groupby("model_config"):
+                _cat_vals = _grp[_cat_cols_present].iloc[0].to_dict()
+                _sub = (
+                    _grp.set_index("generation")[_metric_cols]
+                    .reindex(_all_gens)
+                    .ffill()
+                    .reset_index()
+                )
+                for _k, _v in _cat_vals.items():
+                    _sub[_k] = _v
+                _fill_pieces.append(_sub)
+            _df_mini = pd.concat(_fill_pieces, ignore_index=True) if _fill_pieces else df_cf
+
             m_cols = st.columns(4)
             for col, (lbl, m) in zip(m_cols, CURVE_METRICS.items()):
-                avg = df_cf.groupby([sel_color_col, "generation"], as_index=False)[m].mean()
+                avg = _df_mini.groupby([sel_color_col, "generation"], as_index=False)[m].mean()
                 mini = (
                     alt.Chart(avg)
                     .mark_line(strokeWidth=2.5)
