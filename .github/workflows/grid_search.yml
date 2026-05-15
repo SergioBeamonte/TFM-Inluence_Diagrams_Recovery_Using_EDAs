@@ -52,6 +52,11 @@ jobs:
       matrix:
         optimizer: ${{ fromJson(needs.setup.outputs.matrix) }}
 
+    env:
+      # Sin esto, los print() del script quedan bufferados y los logs de GH Actions
+      # parecen "colgados" durante horas hasta que el buffer se vacia.
+      PYTHONUNBUFFERED: "1"
+
     steps:
       - uses: actions/checkout@v4
 
@@ -96,7 +101,7 @@ jobs:
 
       - name: Run grid search (${{ matrix.optimizer }})
         shell: pwsh
-        run: python grid_search.py ${{ steps.args.outputs.cli }}
+        run: python -u grid_search.py ${{ steps.args.outputs.cli }}
 
       - name: Upload CSVs as artifact
         if: always()
