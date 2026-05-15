@@ -6,8 +6,8 @@ on:
       optimizer:
         description: "Que optimizador(es) ejecutar"
         type: choice
-        options: [umda, egda, emna]
-        default: both
+        options: [all, umda, egna, emna]
+        default: all
       xdsl_path:
         description: "Ruta al .xdsl (vacio = usa el del script)"
         type: string
@@ -39,8 +39,8 @@ jobs:
         shell: bash
         run: |
           case "${{ inputs.optimizer }}" in
-            both) echo 'matrix=["umda","egda"]' >> "$GITHUB_OUTPUT" ;;
-            *)    echo 'matrix=["${{ inputs.optimizer }}"]' >> "$GITHUB_OUTPUT" ;;
+            all) echo 'matrix=["umda","egna","emna"]' >> "$GITHUB_OUTPUT" ;;
+            *)   echo 'matrix=["${{ inputs.optimizer }}"]' >> "$GITHUB_OUTPUT" ;;
           esac
 
   run:
@@ -64,7 +64,8 @@ jobs:
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
-          pip install numpy scipy EDAspy
+          # pandas es transitivo de EDAspy pero no lo declara, lo instalamos explicito
+          pip install numpy scipy pandas EDAspy
           pip install vendor/pysmile-2.4.0-cp313-cp313-win_amd64.whl
 
       - name: Smoke test (pysmile carga con licencia)
