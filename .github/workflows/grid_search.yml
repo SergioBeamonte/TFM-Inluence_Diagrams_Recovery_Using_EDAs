@@ -3,8 +3,26 @@ name: Grid Search
 on:
   workflow_dispatch:
     inputs:
+      optimizer:
+        description: "Que optimizador(es) ejecutar"
+        type: choice
+        options: [both, umda, egda]
+        default: both
+      xdsl_path:
+        description: "Ruta al .xdsl (vacio = usa el del script)"
+        type: string
+        default: ""
+      rules_csv:
+        description: "Ruta al CSV de reglas (vacio = usa el del script)"
+        type: string
+        default: ""
+      min_max_ut:
+        description: "Anclar min/max de utilidades a la red original"
+        type: choice
+        options: [default, "true", "false"]
+        default: default
       fresh_start:
-        description: "Borrar grid_search_*.csv antes de empezar (descartar resultados previos)"
+        description: "Borrar grid_search_*.csv del optimizador seleccionado antes de empezar"
         type: boolean
         default: false
 
@@ -12,9 +30,27 @@ permissions:
   contents: write
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - id: build
+        shell: bash
+        run: |
+          case "${{ inputs.optimizer }}" in
+            both) echo 'matrix=["umda","egda"]' >> "$GITHUB_OUTPUT" ;;
+            *)    echo 'matrix=["${{ inputs.optimizer }}"]' >> "$GITHUB_OUTPUT" ;;
+          esac
+
   run:
+    needs: setup
     runs-on: windows-latest
     timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        optimizer: ${{ fromJson(needs.setup.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +67,7 @@ jobs:
           pip install numpy scipy EDAspy
           pip install vendor/pysmile-2.4.0-cp313-cp313-win_amd64.whl
 
-      - name: Smoke test (pysmile loads with license)
+      - name: Smoke test (pysmile carga con licencia)
         shell: pwsh
         run: python -c "import pysmile_license; import pysmile; print('pysmile OK', pysmile.__file__)"
 
@@ -39,32 +75,67 @@ jobs:
         if: ${{ inputs.fresh_start }}
         shell: pwsh
         run: |
-          Remove-Item example/bypass2/grid_search_results.csv -ErrorAction SilentlyContinue
-          Remove-Item example/bypass2/grid_search_curves.csv  -ErrorAction SilentlyContinue
+          $suffix = "${{ matrix.optimizer }}".ToUpper()
+          Remove-Item "example/bypass2/grid_search_results_$suffix.csv" -ErrorAction SilentlyContinue
+          Remove-Item "example/bypass2/grid_search_curves_$suffix.csv"  -ErrorAction SilentlyContinue
 
-      - name: Run grid search
-        shell: pwsh
-        run: python grid_search.py
-
-      - name: Commit results back to branch
+      - name: Build CLI args
+        id: args
         shell: pwsh
         run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name  "github-actions[bot]"
-          git add example/bypass2/grid_search_results.csv example/bypass2/grid_search_curves.csv
-          if (git diff --cached --quiet) {
-            Write-Host "No changes to commit."
-          } else {
-            git commit -m "grid_search: update results from CI run #${{ github.run_number }}"
-            git push
-          }
+          $cli = "--optimizer_type ${{ matrix.optimizer }}"
+          if ("${{ inputs.xdsl_path }}" -ne "") { $cli += " --xdsl_path ""${{ inputs.xdsl_path }}""" }
+          if ("${{ inputs.rules_csv }}" -ne "") { $cli += " --rules_csv ""${{ inputs.rules_csv }}""" }
+          if ("${{ inputs.min_max_ut }}" -ne "default") { $cli += " --min_max_ut ${{ inputs.min_max_ut }}" }
+          "cli=$cli" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "CLI args: $cli"
 
-      - name: Upload CSVs as artifacts
+      - name: Run grid search (${{ matrix.optimizer }})
+        shell: pwsh
+        run: python grid_search.py ${{ steps.args.outputs.cli }}
+
+      - name: Upload CSVs as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: grid-search-csvs-run-${{ github.run_number }}
+          name: grid-${{ matrix.optimizer }}-run-${{ github.run_number }}
           path: |
-            example/bypass2/grid_search_results.csv
-            example/bypass2/grid_search_curves.csv
+            example/bypass2/grid_search_results_*.csv
+            example/bypass2/grid_search_curves_*.csv
           if-no-files-found: warn
+
+  commit:
+    needs: run
+    if: ${{ always() && needs.run.result != 'cancelled' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Move CSVs into place
+        shell: bash
+        run: |
+          mkdir -p example/bypass2
+          find artifacts -name 'grid_search_*.csv' -exec cp -v {} example/bypass2/ \;
+          ls -lh example/bypass2/grid_search_*.csv || true
+
+      - name: Commit results
+        shell: bash
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add example/bypass2/grid_search_results_*.csv example/bypass2/grid_search_curves_*.csv 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            # rebase contra el remoto por si llegaron commits mientras tanto
+            git pull --rebase origin "${{ github.ref_name }}" || true
+            git commit -m "grid_search: update results from CI run #${{ github.run_number }}"
+            git push
+          fi
