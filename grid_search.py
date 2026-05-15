@@ -46,8 +46,8 @@ TARGET_FITNESS = 1e-5
 
 # --- Grid de búsqueda ---
 # n_decision_rules se calcula como % del total de reglas
-RULES_PERCENTAGES = [5, 10, 20, 30, 40]  # porcentajes
-FITNESS_TYPES = ["regret", "binary", "margin", "softmax", "regret_reg"]
+RULES_PERCENTAGES = [5, 10, 20, 40, 60]  # porcentajes
+FITNESS_TYPES = ["binary", "margin", "softmax", "regret_reg", "regret" "entropy"]
 STOP_MODES = ["top10", "top30", "top70", "top90"]
 
 # --- Repeticiones ---
@@ -302,8 +302,8 @@ def main():
             all_results.append(results)
             
             print(f"    -> Parada en gen {results['stop_generation']} | "
-                  f"Mejor fitness: {results['best_fitness']:.6f} | "
-                  f"Mejor accuracy: {results['best_accuracy']:.1f}%")
+                  f"Mejor fitness: {results['final_fitness']:.6f} | "
+                  f"Mejor accuracy: {results['final_accuracy']:.1f}%")
         
         combo_elapsed = time.time() - combo_start
         
@@ -325,7 +325,10 @@ def main():
             'n_decision_rules': n_rules,
             'n_decision_rules_pct': rules_pct,
             'total_rules': total_rules,
-            'stop_gen_mean': f"{np.mean(stop_gens):.2f}",
+            
+            'stop_gen_mejor': min(stop_gens),
+            'stop_gen_peor': max(stop_gens),
+            'stop_gen_media': f"{np.mean(stop_gens):.2f}",
             'stop_gen_std': f"{np.std(stop_gens):.2f}",
             'stop_gen_min': min(stop_gens),
             'stop_gen_max': max(stop_gens),
@@ -359,7 +362,6 @@ def main():
         
         # --- Calcular y guardar curvas promediadas ---
         avg_curves = average_histories(experiments)
-        
         curve_rows = []
         for point in avg_curves:
             curve_rows.append({
