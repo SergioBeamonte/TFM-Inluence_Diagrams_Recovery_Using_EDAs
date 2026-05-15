@@ -1,0 +1,70 @@
+name: Grid Search
+
+on:
+  workflow_dispatch:
+    inputs:
+      fresh_start:
+        description: "Borrar grid_search_*.csv antes de empezar (descartar resultados previos)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: windows-latest
+    timeout-minutes: 350
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy EDAspy
+          pip install vendor/pysmile-2.4.0-cp313-cp313-win_amd64.whl
+
+      - name: Smoke test (pysmile loads with license)
+        shell: pwsh
+        run: python -c "import pysmile_license; import pysmile; print('pysmile OK', pysmile.__file__)"
+
+      - name: Wipe previous CSVs if requested
+        if: ${{ inputs.fresh_start }}
+        shell: pwsh
+        run: |
+          Remove-Item example/bypass2/grid_search_results.csv -ErrorAction SilentlyContinue
+          Remove-Item example/bypass2/grid_search_curves.csv  -ErrorAction SilentlyContinue
+
+      - name: Run grid search
+        shell: pwsh
+        run: python grid_search.py
+
+      - name: Commit results back to branch
+        shell: pwsh
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name  "github-actions[bot]"
+          git add example/bypass2/grid_search_results.csv example/bypass2/grid_search_curves.csv
+          if (git diff --cached --quiet) {
+            Write-Host "No changes to commit."
+          } else {
+            git commit -m "grid_search: update results from CI run #${{ github.run_number }}"
+            git push
+          }
+
+      - name: Upload CSVs as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: grid-search-csvs-run-${{ github.run_number }}
+          path: |
+            example/bypass2/grid_search_results.csv
+            example/bypass2/grid_search_curves.csv
+          if-no-files-found: warn
