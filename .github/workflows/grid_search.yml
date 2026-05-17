@@ -97,7 +97,11 @@ jobs:
           if ("${{ inputs.rules_csv }}" -ne "") { $cli += " --rules_csv ""${{ inputs.rules_csv }}""" }
           if ("${{ inputs.min_max_ut }}" -ne "default") { $cli += " --min_max_ut ${{ inputs.min_max_ut }}" }
           "cli=$cli" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          # Sufijo en mayusculas para los CSVs (grid_search.py escribe *_UMDA.csv, *_EGNA.csv, *_EMNA.csv)
+          $suffix = "${{ matrix.optimizer }}".ToUpper()
+          "ARTIFACT_SUFFIX=$suffix" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "CLI args: $cli"
+          Write-Host "Artifact suffix: $suffix"
 
       - name: Run grid search (${{ matrix.optimizer }})
         shell: pwsh
@@ -108,9 +112,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: grid-${{ matrix.optimizer }}-run-${{ github.run_number }}
+          # Solo los CSVs de este optimizador, no arrastrar los de otros optimizadores
+          # que vienen del checkout (commiteados por runs anteriores).
           path: |
-            example/bypass2/grid_search_results_*.csv
-            example/bypass2/grid_search_curves_*.csv
+            example/bypass2/grid_search_results_${{ env.ARTIFACT_SUFFIX }}.csv
+            example/bypass2/grid_search_curves_${{ env.ARTIFACT_SUFFIX }}.csv
           if-no-files-found: warn
 
   commit:
