@@ -1,1 +1,14 @@
+# Claude Code (worktrees + local settings)
 .claude/settings.local.json
+.claude/worktrees/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Resultados locales de grid_search (los CSVs "oficiales" los commitea el workflow de CI;
+# los runs locales generan ficheros con sufijos del optimizador que no queremos en el repo).
+example/*/grid_search_results_*_*.csv
+example/*/grid_search_curves_*_*.csv
