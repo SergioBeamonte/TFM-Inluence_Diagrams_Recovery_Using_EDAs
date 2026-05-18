@@ -36,7 +36,6 @@ BASE_CONFIG = {
     'xdsl_path': XDSL_PATH,
     'rules_csv': RULES_CSV,
     'min_max_ut': True,
-    'save_plots': False,
     'u_range': (0, 10),
     'alpha': 0.5,
     'elite_factor': 0.0,
@@ -116,6 +115,13 @@ def run_single_experiment(config, g, i, target_fitness):
         mean_mse_chance = float(np.mean(last_gen['errors_chance']))
         best_mse_utility = float(np.min(last_gen['errors_utility']))
         mean_mse_utility = float(np.mean(last_gen['errors_utility']))
+        # Diagnósticos de sesgo (parametrización logit/sigmoide):
+        # - entropy_norm: BAJO = CPTs decisivas (deseable); ALTO = sesgo al centro del simplex
+        # - util_dev:     ALTO = utilidades dispersas (deseable); BAJO = sesgo al centro del rango
+        best_entropy_norm = float(np.min(last_gen['entropy_norm']))
+        mean_entropy_norm = float(np.mean(last_gen['entropy_norm']))
+        best_util_dev = float(np.max(last_gen['util_dev']))
+        mean_util_dev = float(np.mean(last_gen['util_dev']))
     else:
         # Si no hay historial (paró en la primera evaluación)
         stop_generation = 0
@@ -125,6 +131,8 @@ def run_single_experiment(config, g, i, target_fitness):
         mean_accuracy = float('nan')
         best_mse_chance = mean_mse_chance = float('nan')
         best_mse_utility = mean_mse_utility = float('nan')
+        best_entropy_norm = mean_entropy_norm = float('nan')
+        best_util_dev = mean_util_dev = float('nan')
 
     results = {
         'stop_generation': stop_generation,
@@ -136,6 +144,10 @@ def run_single_experiment(config, g, i, target_fitness):
         'mean_mse_chance': mean_mse_chance,
         'best_mse_utility': best_mse_utility,
         'mean_mse_utility': mean_mse_utility,
+        'best_entropy_norm': best_entropy_norm,
+        'mean_entropy_norm': mean_entropy_norm,
+        'best_util_dev': best_util_dev,
+        'mean_util_dev': mean_util_dev,
     }
 
     return exp, results
@@ -157,6 +169,8 @@ def average_histories(experiments):
         gen_err_chance_list = []
         gen_err_utility_list = []
         gen_accs_list = []
+        gen_ent_list = []
+        gen_dev_list = []
 
         for exp in experiments:
             hist_idx = min(gen_idx, len(exp.history) - 1)
@@ -167,6 +181,8 @@ def average_histories(experiments):
             gen_err_chance_list.append(float(np.mean(gen_data['errors_chance'])))
             gen_err_utility_list.append(float(np.mean(gen_data['errors_utility'])))
             gen_accs_list.append(float(np.mean(gen_data['accuracies'])))
+            gen_ent_list.append(float(np.mean(gen_data['entropy_norm'])))
+            gen_dev_list.append(float(np.mean(gen_data['util_dev'])))
 
         avg_history.append({
             'generation': gen_idx + 1,
@@ -174,6 +190,8 @@ def average_histories(experiments):
             'mean_accuracy': float(np.mean(gen_accs_list)),
             'mean_error_chance': float(np.mean(gen_err_chance_list)),
             'mean_error_utility': float(np.mean(gen_err_utility_list)),
+            'mean_entropy_norm': float(np.mean(gen_ent_list)),
+            'mean_util_dev': float(np.mean(gen_dev_list)),
         })
 
     return avg_history
@@ -196,12 +214,21 @@ RESULTS_HEADER = [
     # MSE de utilidades (reescaladas a [u_min, u_max]) — mejor por experimento, agregado sobre el batch
     'best_mse_utility_mean', 'best_mse_utility_std', 'best_mse_utility_min', 'best_mse_utility_max',
     'mean_mse_utility_mean', 'mean_mse_utility_std', 'mean_mse_utility_min', 'mean_mse_utility_max',
+    # Entropía normalizada total de las CPTs (Σ H(p)/log(k) sobre filas).
+    # Bajo => CPTs decisivas; alto => sesgo al centro del simplex.
+    'best_entropy_norm_mean', 'best_entropy_norm_std', 'best_entropy_norm_min', 'best_entropy_norm_max',
+    'mean_entropy_norm_mean', 'mean_entropy_norm_std', 'mean_entropy_norm_min', 'mean_entropy_norm_max',
+    # Suma de |u - mean(u)| sobre todos los valores de cada nodo utility, acumulado entre nodos.
+    # Alto => utilidades dispersas; bajo => sesgo al centro del rango.
+    'best_util_dev_mean', 'best_util_dev_std', 'best_util_dev_min', 'best_util_dev_max',
+    'mean_util_dev_mean', 'mean_util_dev_std', 'mean_util_dev_min', 'mean_util_dev_max',
 ]
 
 CURVES_HEADER = [
     'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
     'generation', 'mean_fitness', 'mean_accuracy',
     'mean_error_chance', 'mean_error_utility',
+    'mean_entropy_norm', 'mean_util_dev',
 ]
 
 
@@ -238,6 +265,8 @@ def main():
     parser.add_argument('--min_max_ut', type=lambda x: x.lower() not in ('false', '0', 'no'),
                         default=None, help='Normalizar utilidades (True/False)')
     parser.add_argument('--optimizer_type', default=None, help='Tipo de optimizador')
+    parser.add_argument('--base_folder', default=None,
+                        help='Carpeta donde escribir los CSVs (default: BASE_FOLDER del script)')
     args = parser.parse_args()
 
     # Construir config efectiva: valores del script como base, args sobreescriben si se pasan
@@ -251,10 +280,11 @@ def main():
     if args.optimizer_type is not None:
         effective_config['optimizer_type'] = args.optimizer_type
 
+    base_folder = args.base_folder if args.base_folder else BASE_FOLDER
     effective_rules_csv = effective_config['rules_csv']
     suffix = f"_{effective_config['optimizer_type'].upper()}"
-    results_csv = os.path.join(BASE_FOLDER, f"grid_search_results{suffix}.csv")
-    curves_csv = os.path.join(BASE_FOLDER, f"grid_search_curves{suffix}.csv")
+    results_csv = os.path.join(base_folder, f"grid_search_results{suffix}.csv")
+    curves_csv = os.path.join(base_folder, f"grid_search_curves{suffix}.csv")
 
     print("=" * 70)
     print("  GRID SEARCH — IDRecovery")
@@ -263,6 +293,9 @@ def main():
     print(f"xdsl_path:   {effective_config['xdsl_path']}")
     print(f"rules_csv:   {effective_rules_csv}")
     print(f"min_max_ut:  {effective_config['min_max_ut']}")
+    print(f"base_folder: {base_folder}")
+    print(f"results:     {results_csv}")
+    print(f"curves:      {curves_csv}")
 
     # Contar reglas totales
     total_rules = count_total_rules(effective_rules_csv)
@@ -350,6 +383,10 @@ def main():
         mean_mse_chance = [r['mean_mse_chance'] for r in all_results]
         best_mse_utility = [r['best_mse_utility'] for r in all_results]
         mean_mse_utility = [r['mean_mse_utility'] for r in all_results]
+        best_entropy_norm = [r['best_entropy_norm'] for r in all_results]
+        mean_entropy_norm = [r['mean_entropy_norm'] for r in all_results]
+        best_util_dev = [r['best_util_dev'] for r in all_results]
+        mean_util_dev = [r['mean_util_dev'] for r in all_results]
 
         row = {
             'fitness_type': fitness_type,
@@ -386,6 +423,22 @@ def main():
             'mean_mse_utility_std':  f"{np.std(mean_mse_utility):.6f}",
             'mean_mse_utility_min':  f"{min(mean_mse_utility):.6f}",
             'mean_mse_utility_max':  f"{max(mean_mse_utility):.6f}",
+            'best_entropy_norm_mean': f"{np.mean(best_entropy_norm):.6f}",
+            'best_entropy_norm_std':  f"{np.std(best_entropy_norm):.6f}",
+            'best_entropy_norm_min':  f"{min(best_entropy_norm):.6f}",
+            'best_entropy_norm_max':  f"{max(best_entropy_norm):.6f}",
+            'mean_entropy_norm_mean': f"{np.mean(mean_entropy_norm):.6f}",
+            'mean_entropy_norm_std':  f"{np.std(mean_entropy_norm):.6f}",
+            'mean_entropy_norm_min':  f"{min(mean_entropy_norm):.6f}",
+            'mean_entropy_norm_max':  f"{max(mean_entropy_norm):.6f}",
+            'best_util_dev_mean': f"{np.mean(best_util_dev):.6f}",
+            'best_util_dev_std':  f"{np.std(best_util_dev):.6f}",
+            'best_util_dev_min':  f"{min(best_util_dev):.6f}",
+            'best_util_dev_max':  f"{max(best_util_dev):.6f}",
+            'mean_util_dev_mean': f"{np.mean(mean_util_dev):.6f}",
+            'mean_util_dev_std':  f"{np.std(mean_util_dev):.6f}",
+            'mean_util_dev_min':  f"{min(mean_util_dev):.6f}",
+            'mean_util_dev_max':  f"{max(mean_util_dev):.6f}",
         }
 
         append_results_row(results_csv, row)
@@ -404,6 +457,8 @@ def main():
                 'mean_accuracy': f"{point['mean_accuracy']:.2f}",
                 'mean_error_chance':  f"{point['mean_error_chance']:.6f}",
                 'mean_error_utility': f"{point['mean_error_utility']:.6f}",
+                'mean_entropy_norm':  f"{point['mean_entropy_norm']:.6f}",
+                'mean_util_dev':      f"{point['mean_util_dev']:.6f}",
             })
 
         append_curves_rows(curves_csv, curve_rows)
