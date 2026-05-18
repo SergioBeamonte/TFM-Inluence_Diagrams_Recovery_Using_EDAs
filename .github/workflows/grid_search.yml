@@ -21,6 +21,10 @@ on:
         type: choice
         options: [default, "true", "false"]
         default: default
+      base_folder:
+        description: "Carpeta de salida de los CSVs (debe coincidir con la red)"
+        type: string
+        default: "example/nhlv1"
       fresh_start:
         description: "Borrar grid_search_*.csv del optimizador seleccionado antes de empezar"
         type: boolean
@@ -85,14 +89,15 @@ jobs:
         shell: pwsh
         run: |
           $suffix = "${{ matrix.optimizer }}".ToUpper()
-          Remove-Item "example/bypass2/grid_search_results_$suffix.csv" -ErrorAction SilentlyContinue
-          Remove-Item "example/bypass2/grid_search_curves_$suffix.csv"  -ErrorAction SilentlyContinue
+          $folder = "${{ inputs.base_folder }}"
+          Remove-Item "$folder/grid_search_results_$suffix.csv" -ErrorAction SilentlyContinue
+          Remove-Item "$folder/grid_search_curves_$suffix.csv"  -ErrorAction SilentlyContinue
 
       - name: Build CLI args
         id: args
         shell: pwsh
         run: |
-          $cli = "--optimizer_type ${{ matrix.optimizer }}"
+          $cli = "--optimizer_type ${{ matrix.optimizer }} --base_folder ""${{ inputs.base_folder }}"""
           if ("${{ inputs.xdsl_path }}" -ne "") { $cli += " --xdsl_path ""${{ inputs.xdsl_path }}""" }
           if ("${{ inputs.rules_csv }}" -ne "") { $cli += " --rules_csv ""${{ inputs.rules_csv }}""" }
           if ("${{ inputs.min_max_ut }}" -ne "default") { $cli += " --min_max_ut ${{ inputs.min_max_ut }}" }
@@ -115,8 +120,8 @@ jobs:
           # Solo los CSVs de este optimizador, no arrastrar los de otros optimizadores
           # que vienen del checkout (commiteados por runs anteriores).
           path: |
-            example/bypass2/grid_search_results_${{ env.ARTIFACT_SUFFIX }}.csv
-            example/bypass2/grid_search_curves_${{ env.ARTIFACT_SUFFIX }}.csv
+            ${{ inputs.base_folder }}/grid_search_results_*.csv
+            ${{ inputs.base_folder }}/grid_search_curves_*.csv
           if-no-files-found: warn
 
   commit:
@@ -135,17 +140,21 @@ jobs:
 
       - name: Move CSVs into place
         shell: bash
+        env:
+          BASE_FOLDER: ${{ inputs.base_folder }}
         run: |
-          mkdir -p example/bypass2
-          find artifacts -name 'grid_search_*.csv' -exec cp -v {} example/bypass2/ \;
-          ls -lh example/bypass2/grid_search_*.csv || true
+          mkdir -p "$BASE_FOLDER"
+          find artifacts -name 'grid_search_*.csv' -exec cp -v {} "$BASE_FOLDER"/ \;
+          ls -lh "$BASE_FOLDER"/grid_search_*.csv || true
 
       - name: Commit results
         shell: bash
+        env:
+          BASE_FOLDER: ${{ inputs.base_folder }}
         run: |
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name  "github-actions[bot]"
-          git add example/bypass2/grid_search_results_*.csv example/bypass2/grid_search_curves_*.csv 2>/dev/null || true
+          git add "$BASE_FOLDER"/grid_search_results_*.csv "$BASE_FOLDER"/grid_search_curves_*.csv 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "No changes to commit."
           else

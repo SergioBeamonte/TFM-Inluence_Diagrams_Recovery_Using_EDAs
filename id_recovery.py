@@ -18,29 +18,29 @@ from EDAspy.optimization import UMDAc, EGNA, EMNA
 
 
 class IDRecovery:
-    def __init__(self, xdsl_path, rules_csv, min_max_ut=False, u_range=(0, 10), save_plots=False,
+    def __init__(self, xdsl_path, rules_csv, min_max_ut=False, u_range=(0, 10),
                  chance_init_bounds=(-5, 5), utility_init_bounds=(-10, 10),
-                 alpha=0.5, elite_factor=0.0, n_decision_rules=-1, 
+                 alpha=0.5, elite_factor=0.0, n_decision_rules=-1,
                  fitness_type='regret', stop_mode='best', optimizer_type='umda',
                  random_seed = 42):
 
         self.net = pysmile.Network()
         self.net.read_file(xdsl_path)
         self.u_min, self.u_max = u_range
-        self.min_max_ut = min_max_ut 
+        self.min_max_ut = min_max_ut
         self.alpha = alpha
         self.elite_factor = elite_factor
         self.n_decision_rules = n_decision_rules
-        self.fitness_type = fitness_type 
+        self.fitness_type = fitness_type
         self.stop_mode = stop_mode
         self.optimizer_type = optimizer_type.lower()
-        
+
         self.chance_init_bounds = chance_init_bounds
         self.utility_init_bounds = utility_init_bounds
 
         self.chance_nodes = self._get_nodes(["CPT", "TRUTHTABLE"])
         self.utility_nodes = self._get_nodes(["UTILITY"])
-        
+
         self.original_defs = {
             name: np.array(self.net.get_node_definition(self.net.get_node(name)))
             for name in self.chance_nodes + self.utility_nodes
@@ -67,35 +67,56 @@ class IDRecovery:
 
         self.specs = self._build_specs()
         self.total_vars = sum(s['free_size'] for s in self.specs)
-        
+
         self.all_rules = self._compile_rules(rules_csv)
-        
+
         # Sembramos tanto random (para el sampleo de reglas) como numpy.random (para la
         # inicialización y muestreo interno de EDAspy, que usa np.random globalmente).
         self.random_seed = random_seed
         random.seed(random_seed)
         np.random.seed(random_seed)
-        if self.n_decision_rules > 0 and self.n_decision_rules < len(self.all_rules):
+        n_all = len(self.all_rules)
+        if 0 < self.n_decision_rules < n_all:
             self.train_rules = random.sample(self.all_rules, self.n_decision_rules)
+            train_id_set = {id(r) for r in self.train_rules}
+            self.train_mask = [id(r) in train_id_set for r in self.all_rules]
         else:
             self.train_rules = self.all_rules
-            
+            self.train_mask = [True] * n_all
+
         print(f"Optimizador: {self.optimizer_type.upper()}")
         print(f"Modo de Fitness: {self.fitness_type.upper()}")
         print(f"Reglas totales para evaluar precisión: {len(self.all_rules)}")
         print(f"Reglas usadas para entrenar (Fitness): {len(self.train_rules)}")
-        
+
         self.eval_count = 0
         self.current_gen = 1
         self.evals_this_gen = 0
 
-        self.gen_individuals = []
         self.gen_fitness = []
         self.gen_errors_chance = []
         self.gen_errors_utility = []
         self.gen_accuracies = []
+        # Diagnósticos de sesgo en la parametrización logit/sigmoide:
+        #   gen_entropy_norm: suma de H(p)/log(k) sobre todas las filas de todas las CPTs.
+        #                     Bajo => CPTs casi determinísticas. Alto => CPTs uniformes (sesgo).
+        #   gen_util_dev:     suma de |u - mean(u)| sobre todos los valores de cada nodo utility,
+        #                     acumulado entre nodos. Bajo => utilidades planas (sesgo). Alto => spread.
+        self.gen_entropy_norm = []
+        self.gen_util_dev = []
 
         self.history = []
+
+        # Inicializados de verdad por run(); valores neutros que NO disparan parada anticipada
+        # ni cierre de generación si fitness se llamara antes de run().
+        self.size_gen = float('inf')
+        self.target_fitness = -float('inf')
+        self.best_historical_fitness = float('inf')
+        self.best_historical_ind = None
+        self.patience = 0
+        self.min_delta = 0.0
+        self.stagnation_counter = 0
+        self.best_stagnation_fitness = float('inf')
 
     def _get_nodes(self, types):
         valid = [getattr(pysmile.NodeType, t) for t in types if hasattr(pysmile.NodeType, t)]
@@ -111,22 +132,21 @@ class IDRecovery:
             shape = tuple([self.net.get_outcome_count(p) for p in parents]) + ((self.net.get_outcome_count(h),) if kind == 'chance' else ())
 
             mask = np.ones(size, dtype=bool)
-            fixed = []
-            
+            fixed = []  # lista de (flat_idx, valor_fijo), precomputado para no llamar a
+                        # np.ravel_multi_index en cada decode.
+
             if kind == 'utility' and self.min_max_ut:
                 original_u = self.original_defs[name]
-                best_flat = np.argmax(original_u)
-                worst_flat = np.argmin(original_u)
-                best_idx = np.unravel_index(best_flat, shape)
-                worst_idx = np.unravel_index(worst_flat, shape)
-                
-                fixed.append((best_idx, self.u_max))
+                best_flat = int(np.argmax(original_u))
+                worst_flat = int(np.argmin(original_u))
+
+                fixed.append((best_flat, self.u_max))
                 mask[best_flat] = False
-                
+
                 if worst_flat != best_flat:
-                    fixed.append((worst_idx, self.u_min))
+                    fixed.append((worst_flat, self.u_min))
                     mask[worst_flat] = False
-            
+
             specs.append({'name': name, 'kind': kind, 'size': size, 'free_size': mask.sum(), 'shape': shape, 'mask': mask, 'fixed': fixed})
         return specs
 
@@ -149,6 +169,9 @@ class IDRecovery:
         pos = 0
         real_error_chance = 0.0
         real_error_utility = 0.0
+        # Diagnósticos de sesgo: ver __init__.
+        total_entropy_norm = 0.0
+        total_util_dev = 0.0
         decoded_vals = {}
 
         for s in self.specs:
@@ -158,12 +181,25 @@ class IDRecovery:
             if s['kind'] == 'chance':
                 raw_r = raw.reshape(s['shape'])
                 res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
-                val = (res / res.sum(axis=-1, keepdims=True)).flatten()
+                probs = res / res.sum(axis=-1, keepdims=True)   # shape (..., k)
+                val = probs.flatten()
+
+                # Entropía normalizada acumulada (suma sobre filas del simplex).
+                k = s['shape'][-1]
+                log_k = np.log(k) if k > 1 else 1.0
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    p_log_p = np.where(probs > 0, probs * np.log(probs), 0.0)
+                H_per_row = -p_log_p.sum(axis=-1)
+                total_entropy_norm += float((H_per_row / log_k).sum())
             else:
                 val = np.zeros(s['size'])
                 val[s['mask']] = expit(raw) * (self.u_max - self.u_min) + self.u_min
-                for idx, fv in s['fixed']:
-                    val[np.ravel_multi_index(idx, s['shape'])] = fv
+                for flat, fv in s['fixed']:
+                    val[flat] = fv
+
+                # Suma de desviaciones absolutas de las utilidades respecto a su media.
+                if val.size > 0:
+                    total_util_dev += float(np.abs(val - val.mean()).sum())
 
             decoded_vals[s['name']] = val
             node_mse = float(np.mean((val - self.original_defs_scaled[s['name']])**2))
@@ -172,90 +208,85 @@ class IDRecovery:
             else:
                 real_error_utility += node_mse
 
-        return decoded_vals, real_error_chance, real_error_utility
+        return decoded_vals, real_error_chance, real_error_utility, total_entropy_norm, total_util_dev
 
     def fitness(self, vector):
-        decoded_vals, real_error_chance, real_error_utility = self._decode_vector(vector)
-        
+        decoded_vals, real_error_chance, real_error_utility, entropy_norm, util_dev = self._decode_vector(vector)
+
         for name, val in decoded_vals.items():
-            self.net.set_node_definition(name, val.tolist()) 
-        
-        try: 
+            self.net.set_node_definition(name, val.tolist())
+
+        try:
             self.net.update_beliefs()
-        except pysmile.SMILEException: 
+        except pysmile.SMILEException:
             return 1e6
-        
-        penalty_score = 0 
-        
-        # 1. EVALUAR FITNESS (Entrenamiento)
-        for r in self.train_rules:
+
+        # PASE ÚNICO: calcula accuracy sobre TODAS las reglas y, en la misma iteración,
+        # acumula el fitness solo para las reglas de entrenamiento (train_mask). Antes
+        # se hacían dos loops separados sobre all_rules, repitiendo get_node_value y
+        # slicing por cada regla. Para train_rules pequeñas (5-60%) esto ahorra del 50%
+        # al 95% del trabajo del loop de reglas por individuo.
+        penalty_score = 0
+        rules_fulfilled = 0
+        ftype = self.fitness_type
+        train_mask = self.train_mask
+
+        for idx, r in enumerate(self.all_rules):
             try:
                 utils = self.net.get_node_value(r['node'])[r['c_idx']*r['n_act'] : (r['c_idx']+1)*r['n_act']]
                 max_u = max(utils)
                 rule_u = utils[r['a_idx']]
-                
-                if self.fitness_type == 'binary':
+
+                if (max_u - rule_u) <= 1e-5:
+                    rules_fulfilled += 1
+
+                if not train_mask[idx]:
+                    continue
+
+                if ftype == 'binary':
                     if (max_u - rule_u) > 0:
                         penalty_score += 1
-                        
-                elif self.fitness_type == 'regret':
+
+                elif ftype == 'regret' or ftype == 'regret_reg':
                     penalty_score += (max_u - rule_u)
-                    
-                elif self.fitness_type == 'margin':
-                    margen = 1.0 
+
+                elif ftype == 'margin':
+                    margen = 1.0
                     utilidades_alternativas = [u for i, u in enumerate(utils) if i != r['a_idx']]
                     mejor_alternativa = max(utilidades_alternativas) if utilidades_alternativas else 0
                     penalty_score += max(0, (mejor_alternativa + margen) - rule_u)
-                    
-                elif self.fitness_type == 'softmax':
-                    exp_utils = np.exp(np.array(utils) - max_u) 
-                    prob_rule = exp_utils[r['a_idx']] / np.sum(exp_utils)
-                    penalty_score += -np.log(prob_rule + 1e-9) 
 
-                elif self.fitness_type == 'entropy':
-                    exp_utils = np.exp(np.array(utils) - max_u) 
-                    probs = exp_utils / np.sum(exp_utils) 
+                elif ftype == 'softmax':
+                    exp_utils = np.exp(np.array(utils) - max_u)
+                    prob_rule = exp_utils[r['a_idx']] / np.sum(exp_utils)
+                    penalty_score += -np.log(prob_rule + 1e-9)
+
+                elif ftype == 'entropy':
+                    exp_utils = np.exp(np.array(utils) - max_u)
+                    probs = exp_utils / np.sum(exp_utils)
                     prob_rule = probs[r['a_idx']]
-    
                     nll_loss = -np.log(prob_rule + 1e-9)
                     entropy = -np.sum(probs * np.log(probs + 1e-9))
-    
-                    alpha = 0.1 
+                    alpha = 0.1
                     penalty_score += nll_loss + (alpha * entropy)
-                    
-                elif self.fitness_type == 'regret_reg':
-                    penalty_score += (max_u - rule_u)
-                    
+
             except IndexError:
                 return 1e6
 
-        # --- APLICAR REGULARIZACIÓN CIEGA ---
-        if self.fitness_type == 'regret_reg':
-            lambda_reg = 0.01 
-            l2_penalty = np.sum(vector**2)
-            penalty_score += (lambda_reg * l2_penalty)
-                
-        # --- RASTREO DEL MEJOR HISTÓRICO ---
-        if hasattr(self, 'best_historical_fitness') and penalty_score < self.best_historical_fitness:
+        if ftype == 'regret_reg':
+            penalty_score += 0.01 * np.sum(vector**2)
+
+        if penalty_score < self.best_historical_fitness:
             self.best_historical_fitness = penalty_score
             self.best_historical_ind = vector
-            
-        # 2. EVALUAR PRECISIÓN GLOBAL (Test/Gráficas)
-        rules_fulfilled = 0
-        for r in self.all_rules:
-            try:
-                utils = self.net.get_node_value(r['node'])[r['c_idx']*r['n_act'] : (r['c_idx']+1)*r['n_act']]
-                if (max(utils) - utils[r['a_idx']]) <= 1e-5:
-                    rules_fulfilled += 1
-            except IndexError:
-                return 1e6
-                
+
         accuracy = (rules_fulfilled / len(self.all_rules)) * 100
-            
-        self.gen_individuals.append(vector)
+
         self.gen_fitness.append(penalty_score)
         self.gen_errors_chance.append(real_error_chance)
         self.gen_errors_utility.append(real_error_utility)
+        self.gen_entropy_norm.append(entropy_norm)
+        self.gen_util_dev.append(util_dev)
         self.gen_accuracies.append(accuracy)
         self.eval_count += 1
         self.evals_this_gen += 1
@@ -266,7 +297,7 @@ class IDRecovery:
         # alcanza size_gen al final de cada bloque. Usar un contador explícito en lugar de
         # eval_count % size_gen es más robusto frente a llamadas extra al fitness (p.ej. la
         # evaluación final tras minimize()).
-        if hasattr(self, 'size_gen') and self.evals_this_gen >= self.size_gen:
+        if self.evals_this_gen >= self.size_gen:
             
             errors_chance_arr = np.array(self.gen_errors_chance)
             errors_utility_arr = np.array(self.gen_errors_utility)
@@ -277,7 +308,9 @@ class IDRecovery:
                 # 'errors' = suma por individuo (compatibilidad con el notebook antiguo)
                 'errors': errors_chance_arr + errors_utility_arr,
                 'fitness': np.array(self.gen_fitness),
-                'accuracies': np.array(self.gen_accuracies)
+                'accuracies': np.array(self.gen_accuracies),
+                'entropy_norm': np.array(self.gen_entropy_norm),
+                'util_dev': np.array(self.gen_util_dev),
             })
             
             sorted_fitness = np.sort(self.gen_fitness)
@@ -324,13 +357,14 @@ class IDRecovery:
             
             self.current_gen += 1
             self.evals_this_gen = 0
-            self.gen_individuals = []
             self.gen_fitness = []
             self.gen_errors_chance = []
             self.gen_errors_utility = []
+            self.gen_entropy_norm = []
+            self.gen_util_dev = []
             self.gen_accuracies = []
 
-            if hasattr(self, 'target_fitness') and value_to_check <= self.target_fitness:
+            if value_to_check <= self.target_fitness:
                 raise StopIteration(f"{msg_parada} un Score <= {self.target_fitness:.4f}")
             
         return penalty_score
@@ -406,10 +440,6 @@ class IDRecovery:
             mejor_vector = self.best_historical_ind
             self.stagnation_counter = 0
 
-        try:
-            self.fitness(mejor_vector)
-        except StopIteration:
-            pass
         return mejor_vector
 
 
