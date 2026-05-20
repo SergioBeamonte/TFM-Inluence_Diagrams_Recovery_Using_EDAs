@@ -22,7 +22,7 @@ class IDRecovery:
                  chance_init_bounds=(-5, 5), utility_init_bounds=(-10, 10),
                  alpha=0.5, elite_factor=0.0, n_decision_rules=-1,
                  fitness_type='regret', stop_mode='best', optimizer_type='umda',
-                 random_seed = 42):
+                 decode_type='softmax_sigmoid', random_seed=42):
 
         self.net = pysmile.Network()
         self.net.read_file(xdsl_path)
@@ -34,6 +34,7 @@ class IDRecovery:
         self.fitness_type = fitness_type
         self.stop_mode = stop_mode
         self.optimizer_type = optimizer_type.lower()
+        self.decode_type = decode_type
 
         self.chance_init_bounds = chance_init_bounds
         self.utility_init_bounds = utility_init_bounds
@@ -180,8 +181,13 @@ class IDRecovery:
 
             if s['kind'] == 'chance':
                 raw_r = raw.reshape(s['shape'])
-                res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
-                probs = res / res.sum(axis=-1, keepdims=True)   # shape (..., k)
+                if self.decode_type == 'linear':
+                    # Shift-and-normalize: estira más la distribución que softmax
+                    x = raw_r - raw_r.min(axis=-1, keepdims=True) + 1e-9
+                    probs = x / x.sum(axis=-1, keepdims=True)
+                else:  # softmax_sigmoid (default)
+                    res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
+                    probs = res / res.sum(axis=-1, keepdims=True)
                 val = probs.flatten()
 
                 # Entropía normalizada acumulada (suma sobre filas del simplex).
@@ -193,7 +199,12 @@ class IDRecovery:
                 total_entropy_norm += float((H_per_row / log_k).sum())
             else:
                 val = np.zeros(s['size'])
-                val[s['mask']] = expit(raw) * (self.u_max - self.u_min) + self.u_min
+                if self.decode_type == 'linear':
+                    # Map lineal desde utility_init_bounds a [u_min, u_max]
+                    lb, ub = self.utility_init_bounds
+                    val[s['mask']] = (raw - lb) / (ub - lb) * (self.u_max - self.u_min) + self.u_min
+                else:  # softmax_sigmoid (default)
+                    val[s['mask']] = expit(raw) * (self.u_max - self.u_min) + self.u_min
                 for flat, fv in s['fixed']:
                     val[flat] = fv
 
@@ -221,11 +232,7 @@ class IDRecovery:
         except pysmile.SMILEException:
             return 1e6
 
-        # PASE ÚNICO: calcula accuracy sobre TODAS las reglas y, en la misma iteración,
-        # acumula el fitness solo para las reglas de entrenamiento (train_mask). Antes
-        # se hacían dos loops separados sobre all_rules, repitiendo get_node_value y
-        # slicing por cada regla. Para train_rules pequeñas (5-60%) esto ahorra del 50%
-        # al 95% del trabajo del loop de reglas por individuo.
+
         penalty_score = 0
         rules_fulfilled = 0
         ftype = self.fitness_type
@@ -292,11 +299,7 @@ class IDRecovery:
         self.evals_this_gen += 1
 
         # --- FINAL DE GENERACIÓN ---
-        # EDAspy llama al callback exactamente size_gen veces por generación (los élites se
-        # almacenan aparte en elite_temp y no se reevalúan), así que el contador per-gen
-        # alcanza size_gen al final de cada bloque. Usar un contador explícito en lugar de
-        # eval_count % size_gen es más robusto frente a llamadas extra al fitness (p.ej. la
-        # evaluación final tras minimize()).
+
         if self.evals_this_gen >= self.size_gen:
             
             errors_chance_arr = np.array(self.gen_errors_chance)
@@ -305,7 +308,6 @@ class IDRecovery:
                 'gen': self.current_gen,
                 'errors_chance': errors_chance_arr,
                 'errors_utility': errors_utility_arr,
-                # 'errors' = suma por individuo (compatibilidad con el notebook antiguo)
                 'errors': errors_chance_arr + errors_utility_arr,
                 'fitness': np.array(self.gen_fitness),
                 'accuracies': np.array(self.gen_accuracies),

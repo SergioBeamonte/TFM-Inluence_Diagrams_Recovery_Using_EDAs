@@ -25,11 +25,11 @@ import numpy as np
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # --- Red y reglas ---
-# BASE_FOLDER = r"example\nhlv1"
-BASE_FOLDER = r"example\bypass2"
+BASE_FOLDER = r"example\nhlv1"
+# BASE_FOLDER = r"example\bypass2"
 
-XDSL_PATH = os.path.join(BASE_FOLDER, r"network-bypass2.xdsl")
-# XDSL_PATH = os.path.join(BASE_FOLDER, r"network-nhlv1.xdsl")
+# XDSL_PATH = os.path.join(BASE_FOLDER, r"network-bypass2.xdsl")
+XDSL_PATH = os.path.join(BASE_FOLDER, r"network-nhlv1.xdsl")
 RULES_CSV = os.path.join(BASE_FOLDER, r"reglas_generadas.csv")
 
 # --- Parámetros fijos del optimizador ---
@@ -40,7 +40,7 @@ BASE_CONFIG = {
     'u_range': (0, 10),
     'alpha': 0.5,
     'elite_factor': 0.0,
-    'optimizer_type': 'egna',
+    'optimizer_type': 'umda',
 }
 
 # --- Parámetros del optimizador ---
@@ -50,9 +50,10 @@ TARGET_FITNESS = 1e-5
 
 # --- Grid de búsqueda ---
 # n_decision_rules se calcula como % del total de reglas
-RULES_PERCENTAGES = [5, 10, 20, 40, 60]  # porcentajes
+RULES_PERCENTAGES = [5, 10, 20]  # porcentajes
 FITNESS_TYPES = ["binary", "margin", "softmax", "regret", "entropy"]
-STOP_MODES = ["top10", "top30", "top70", "top90"]
+STOP_MODES = ["top50"]
+DECODE_TYPES = ["softmax_sigmoid", "linear"]
 
 # --- Repeticiones ---
 N_REPETITIONS = 5
@@ -81,7 +82,7 @@ def get_completed_combinations(results_csv_path):
     with open(results_csv_path, 'r', newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            key = (row['fitness_type'], row['stop_mode'], row['n_decision_rules'])
+            key = (row.get('decode_type', 'softmax_sigmoid'), row['fitness_type'], row['stop_mode'], row['n_decision_rules'])
             completed.add(key)
     return completed
 
@@ -107,7 +108,7 @@ def run_single_experiment(config, g, i, target_fitness):
     if exp.history:
         last_gen = exp.history[-1]
         stop_generation = last_gen['gen']
-        best_fitness   = float(np.min(last_gen['fitness']))
+        best_fitness   = float(np.mean(last_gen['fitness']))
         best_accuracy  = float(np.max(last_gen['accuracies']))
         best_mse_chance   = float(np.min(last_gen['errors_chance']))
         best_mse_utility  = float(np.min(last_gen['errors_utility']))
@@ -184,11 +185,10 @@ def average_histories(experiments):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 RESULTS_HEADER = [
-    'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
+    'decode_type', 'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
     'total_rules',
     'stop_gen_mean', 'stop_gen_std', 'stop_gen_min', 'stop_gen_max',
-    'best_fitness_mean', 'best_fitness_std',
-    # Mejor individuo de la última generación, promediado sobre las N repeticiones
+    'fitness_mean', 'fitness_std',
     'accuracy_mean', 'accuracy_std', 'accuracy_min', 'accuracy_max',
     'mse_chance_mean', 'mse_chance_std',
     'mse_utility_mean', 'mse_utility_std',
@@ -197,11 +197,9 @@ RESULTS_HEADER = [
 ]
 
 CURVES_HEADER = [
-    'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
+    'decode_type', 'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
     'generation', 'mean_fitness', 'mean_accuracy',
-    'mean_error_chance', 'mean_error_utility',
-    'mean_entropy_norm', 'mean_util_dev',
-]
+    'mean_error_chance', 'mean_error_utility', 'mean_entropy_norm', 'mean_util_dev']
 
 
 def ensure_csv_header(filepath, header):
@@ -237,6 +235,7 @@ def main():
     parser.add_argument('--min_max_ut', type=lambda x: x.lower() not in ('false', '0', 'no'),
                         default=None, help='Normalizar utilidades (True/False)')
     parser.add_argument('--optimizer_type', default=None, help='Tipo de optimizador')
+    parser.add_argument('--decode_type', default=None, help='Tipo de decodificación: softmax_sigmoid | linear')
     parser.add_argument('--base_folder', default=None,
                         help='Carpeta donde escribir los CSVs (default: BASE_FOLDER del script)')
     args = parser.parse_args()
@@ -251,6 +250,10 @@ def main():
         effective_config['min_max_ut'] = args.min_max_ut
     if args.optimizer_type is not None:
         effective_config['optimizer_type'] = args.optimizer_type
+
+    # decode_type puede fijarse por argumento (corre solo ese tipo) o dejarse en None
+    # para que el grid itere sobre DECODE_TYPES
+    fixed_decode_type = args.decode_type if args.decode_type is not None else None
 
     base_folder = args.base_folder if args.base_folder else BASE_FOLDER
     effective_rules_csv = effective_config['rules_csv']
@@ -278,7 +281,9 @@ def main():
     print(f"n_decision_rules (pct -> n): {rules_values}")
 
     # Generar todas las combinaciones
+    decode_types_to_run = [fixed_decode_type] if fixed_decode_type else DECODE_TYPES
     grid = list(itertools.product(
+        decode_types_to_run,
         FITNESS_TYPES,
         STOP_MODES,
         rules_values,
@@ -303,17 +308,17 @@ def main():
     global_start = time.time()
     combo_done = len(completed)
     
-    for combo_idx, (fitness_type, stop_mode, (rules_pct, n_rules)) in enumerate(grid, 1):
-        combo_key = (fitness_type, stop_mode, str(n_rules))
-        
+    for combo_idx, (decode_type, fitness_type, stop_mode, (rules_pct, n_rules)) in enumerate(grid, 1):
+        combo_key = (decode_type, fitness_type, stop_mode, str(n_rules))
+
         if combo_key in completed:
             print(f"[{combo_idx}/{total_combinations}] SALTANDO (ya completada): "
-                  f"fitness={fitness_type} | stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
+                  f"decode={decode_type} | fitness={fitness_type} | stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
             continue
-        
+
         print(f"\n{'-' * 70}")
         print(f"[{combo_idx}/{total_combinations}] "
-              f"fitness={fitness_type} | stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
+              f"decode={decode_type} | fitness={fitness_type} | stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
         print(f"{'-' * 70}")
         
         # --- Ejecutar N repeticiones ---
@@ -331,6 +336,7 @@ def main():
                 'n_decision_rules': n_rules,
                 'fitness_type': fitness_type,
                 'stop_mode': stop_mode,
+                'decode_type': decode_type,
                 'random_seed': seed,
             }
 
@@ -355,6 +361,7 @@ def main():
         util_devs     = [r['best_util_dev']      for r in all_results]
 
         row = {
+            'decode_type':         decode_type,
             'fitness_type':        fitness_type,
             'stop_mode':           stop_mode,
             'n_decision_rules':    n_rules,
@@ -364,8 +371,8 @@ def main():
             'stop_gen_std':        f"{np.std(stop_gens):.2f}",
             'stop_gen_min':        min(stop_gens),
             'stop_gen_max':        max(stop_gens),
-            'best_fitness_mean':   f"{np.mean(best_fits):.6f}",
-            'best_fitness_std':    f"{np.std(best_fits):.6f}",
+            'fitness_mean':        f"{np.mean(best_fits):.6f}",
+            'fitness_std':         f"{np.std(best_fits):.6f}",
             'accuracy_mean':       f"{np.mean(best_accs):.2f}",
             'accuracy_std':        f"{np.std(best_accs):.2f}",
             'accuracy_min':        f"{min(best_accs):.2f}",
@@ -387,6 +394,7 @@ def main():
         curve_rows = []
         for point in avg_curves:
             curve_rows.append({
+                'decode_type': decode_type,
                 'fitness_type': fitness_type,
                 'stop_mode': stop_mode,
                 'n_decision_rules': n_rules,
@@ -398,6 +406,7 @@ def main():
                 'mean_error_utility': f"{point['mean_error_utility']:.6f}",
                 'mean_entropy_norm':  f"{point['mean_entropy_norm']:.6f}",
                 'mean_util_dev':      f"{point['mean_util_dev']:.6f}",
+                                  
             })
 
         append_curves_rows(curves_csv, curve_rows)
