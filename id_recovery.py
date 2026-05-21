@@ -14,7 +14,7 @@ import numpy as np
 import random
 import csv
 from scipy.special import expit
-from EDAspy.optimization import UMDAc, EGNA, EMNA
+from EDAspy.optimization import UMDAc, EGNA, EMNA, UnivariateKEDA
 
 
 class IDRecovery:
@@ -464,6 +464,11 @@ class IDRecovery:
             optimizer = EGNA(**optimizer_kwargs)
         elif self.optimizer_type == 'emna':
             optimizer = EMNA(**optimizer_kwargs)
+        elif self.optimizer_type == 'keda':
+            # KEDA univariado: como UMDAc pero modela cada variable con un KDE en vez
+            # de una Gaussiana. Útil cuando la distribución óptima en raw es asimétrica
+            # o multimodal (no encajaría en una sola Gaussiana).
+            optimizer = UnivariateKEDA(**optimizer_kwargs)
         else:
             raise ValueError(f"Optimizador '{self.optimizer_type}' no reconocido.")
         

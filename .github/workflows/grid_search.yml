@@ -6,7 +6,7 @@ on:
       optimizer:
         description: "Que optimizador(es) ejecutar"
         type: choice
-        options: [all, umda, egna, emna]
+        options: [all, umda, egna, emna, keda]
         default: all
       xdsl_path:
         description: "Ruta al .xdsl (vacio = usa el del script)"
@@ -43,7 +43,7 @@ jobs:
         shell: bash
         run: |
           case "${{ inputs.optimizer }}" in
-            all) echo 'matrix=["umda","egna","emna"]' >> "$GITHUB_OUTPUT" ;;
+            all) echo 'matrix=["umda","egna","emna","keda"]' >> "$GITHUB_OUTPUT" ;;
             *)   echo 'matrix=["${{ inputs.optimizer }}"]' >> "$GITHUB_OUTPUT" ;;
           esac
 

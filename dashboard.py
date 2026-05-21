@@ -69,6 +69,26 @@ _RESULTS_DROP = {
 def _normalize_results(df: pd.DataFrame) -> pd.DataFrame:
     df = df.rename(columns={k: v for k, v in _RESULTS_RENAME.items() if k in df.columns})
     df = df.drop(columns=[c for c in _RESULTS_DROP if c in df.columns])
+    # Defaults retrocompatibles: filas antiguas sin las dimensiones nuevas se
+    # interpretan como el comportamiento clásico para que sigan apareciendo en
+    # los filtros sin estallar.
+    if 'mode' not in df.columns:
+        df['mode'] = 'both'
+    if 'chance_temperature' not in df.columns:
+        df['chance_temperature'] = 1.0
+    if 'utility_temperature' not in df.columns:
+        df['utility_temperature'] = 1.0
+    return df
+
+
+def _fill_new_param_defaults(df: pd.DataFrame) -> pd.DataFrame:
+    """Rellena columnas de los parámetros nuevos para CSVs anteriores al cambio."""
+    if 'mode' not in df.columns:
+        df['mode'] = 'both'
+    if 'chance_temperature' not in df.columns:
+        df['chance_temperature'] = 1.0
+    if 'utility_temperature' not in df.columns:
+        df['utility_temperature'] = 1.0
     return df
 
 
@@ -85,7 +105,7 @@ def load_all(model_dict_frozen):
             df = pd.read_csv(curves_path)
             if not df.empty:
                 df.insert(0, "model", model)
-                cur_list.append(df)
+                cur_list.append(_fill_new_param_defaults(df))
     df_r = pd.concat(res_list, ignore_index=True) if res_list else pd.DataFrame()
     df_c = pd.concat(cur_list, ignore_index=True) if cur_list else pd.DataFrame()
     return df_r, df_c
@@ -153,7 +173,10 @@ def _register_theme():
 
 _register_theme()
 
-_CATEGORICAL_COLS = ["model", "fitness_type", "stop_mode", "n_decision_rules_pct"]
+_CATEGORICAL_COLS = [
+    "model", "mode", "fitness_type", "stop_mode", "n_decision_rules_pct",
+    "chance_temperature", "utility_temperature",
+]
 _NUMERIC_COLS = (
     [c for c in df_results_all.columns
      if c not in _CATEGORICAL_COLS and pd.api.types.is_numeric_dtype(df_results_all[c])]
@@ -169,14 +192,20 @@ with st.sidebar:
     ref = df_results_all if not df_results_all.empty else df_curves_all
 
     all_models  = sorted(ref["model"].unique())
+    all_mode    = sorted(ref["mode"].unique())
     all_fitness = sorted(ref["fitness_type"].unique())
     all_stop    = sorted(ref["stop_mode"].unique())
     all_pct     = sorted(ref["n_decision_rules_pct"].unique())
+    all_ct      = sorted(ref["chance_temperature"].unique())
+    all_ut      = sorted(ref["utility_temperature"].unique())
 
     sel_models  = st.multiselect("Modelos",              all_models,  default=all_models)
+    sel_mode    = st.multiselect("Modo (both/util/cpt)", all_mode,    default=all_mode)
     sel_fitness = st.multiselect("Tipo de Fitness",      all_fitness, default=all_fitness)
     sel_stop    = st.multiselect("Modo de Parada",       all_stop,    default=all_stop)
     sel_pct     = st.multiselect("% Reglas de Decisión", all_pct,     default=all_pct)
+    sel_ct      = st.multiselect("T softmax (CPTs)",     all_ct,      default=all_ct)
+    sel_ut      = st.multiselect("T sigmoid (Util.)",    all_ut,      default=all_ut)
 
     st.divider()
     st.subheader("📊 Explorador de Variables")
@@ -193,9 +222,12 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         return df
     return df[
         df["model"].isin(sel_models)
+        & df["mode"].isin(sel_mode)
         & df["fitness_type"].isin(sel_fitness)
         & df["stop_mode"].isin(sel_stop)
         & df["n_decision_rules_pct"].isin(sel_pct)
+        & df["chance_temperature"].isin(sel_ct)
+        & df["utility_temperature"].isin(sel_ut)
     ].copy()
 
 
@@ -222,7 +254,11 @@ with tab_results:
         k2.metric(
             "Mejor Accuracy (media)",
             f"{best['accuracy_mean']:.1f}%",
-            delta=f"{best['model']} · {best['fitness_type']} · {best['stop_mode']} · {best['n_decision_rules_pct']}%",
+            delta=(
+                f"{best['model']} · mode={best['mode']} · {best['fitness_type']} · "
+                f"{best['stop_mode']} · {best['n_decision_rules_pct']}% · "
+                f"Tc={best['chance_temperature']} · Tu={best['utility_temperature']}"
+            ),
         )
         k3.metric(
             "Accuracy Global Máximo",
@@ -395,7 +431,8 @@ with tab_results:
         st.subheader("📋 Tabla Completa — Todos los Modelos y Configuraciones")
 
         ordered_cols = [
-            "model", "fitness_type", "stop_mode", "n_decision_rules_pct",
+            "model", "mode", "fitness_type", "stop_mode", "n_decision_rules_pct",
+            "chance_temperature", "utility_temperature",
             "accuracy_mean", "accuracy_std", "accuracy_min", "accuracy_max",
             "mse_chance_mean", "mse_chance_std",
             "mse_utility_mean", "mse_utility_std",
@@ -416,9 +453,12 @@ with tab_results:
             hide_index=True,
             column_config={
                 "model":               st.column_config.TextColumn("Modelo"),
+                "mode":                st.column_config.TextColumn("Modo"),
                 "fitness_type":        st.column_config.TextColumn("Fitness"),
                 "stop_mode":           st.column_config.TextColumn("Stop Mode"),
                 "n_decision_rules_pct":st.column_config.NumberColumn("% Reglas",       format="%.0f %%"),
+                "chance_temperature":  st.column_config.NumberColumn("T softmax",      format="%.2f"),
+                "utility_temperature": st.column_config.NumberColumn("T sigmoid",      format="%.2f"),
                 "accuracy_mean":       st.column_config.NumberColumn("Accuracy Media",  format="%.1f %%"),
                 "accuracy_std":        st.column_config.NumberColumn("Accuracy σ",      format="%.2f"),
                 "accuracy_min":        st.column_config.NumberColumn("Accuracy Min",    format="%.1f %%"),
@@ -461,9 +501,12 @@ with tab_curves:
         st.info("Sin datos de curvas para los filtros seleccionados — puede que el grid search aún esté corriendo.")
     else:
         df_c["config"] = (
-            df_c["fitness_type"] + " | "
+            df_c["mode"] + " | "
+            + df_c["fitness_type"] + " | "
             + df_c["stop_mode"] + " | "
-            + df_c["n_decision_rules_pct"].astype(str) + "%"
+            + df_c["n_decision_rules_pct"].astype(str) + "% | "
+            + "Tc=" + df_c["chance_temperature"].astype(str)
+            + " Tu=" + df_c["utility_temperature"].astype(str)
         )
         df_c["model_config"] = df_c["model"] + " · " + df_c["config"]
 
@@ -479,13 +522,16 @@ with tab_curves:
 
         _COLOR_OPTIONS = {
             "Modelo":           "model",
+            "Modo":             "mode",
             "Fitness Type":     "fitness_type",
             "Stop Mode":        "stop_mode",
             "% Reglas":         "n_decision_rules_pct",
+            "T softmax":        "chance_temperature",
+            "T sigmoid":        "utility_temperature",
         }
         sel_color_label = ctrl3.selectbox("Color por", list(_COLOR_OPTIONS.keys()))
         sel_color_col   = _COLOR_OPTIONS[sel_color_label]
-        _cenc = "O" if sel_color_col == "n_decision_rules_pct" else "N"
+        _cenc = "O" if sel_color_col in ("n_decision_rules_pct", "chance_temperature", "utility_temperature") else "N"
 
         curve_fitness = ctrl4.multiselect(
             "Fitness (filtro adicional curvas)",
