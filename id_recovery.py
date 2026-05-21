@@ -22,7 +22,8 @@ class IDRecovery:
                  chance_init_bounds=(-5, 5), utility_init_bounds=(-10, 10),
                  alpha=0.5, elite_factor=0.0, n_decision_rules=-1,
                  fitness_type='regret', stop_mode='best', optimizer_type='umda',
-                 decode_type='softmax_sigmoid', random_seed=42):
+                 chance_temperature=1.0, utility_temperature=1.0,
+                 mode='both', random_seed=42):
 
         self.net = pysmile.Network()
         self.net.read_file(xdsl_path)
@@ -34,7 +35,24 @@ class IDRecovery:
         self.fitness_type = fitness_type
         self.stop_mode = stop_mode
         self.optimizer_type = optimizer_type.lower()
-        self.decode_type = decode_type
+        # Temperaturas de las funciones de decodificación. softmax(raw/T) y sigmoid(raw/T):
+        #   T < 1  → curva AFILADA (sharp/peaked). Pequeños cambios en raw saltan a 0/1.
+        #            Útil para CPTs cuasi-determinísticas o utilidades bimodales.
+        #   T = 1  → comportamiento clásico.
+        #   T > 1  → curva ESTIRADA (flat). Casi lineal cerca de 0, satura tarde.
+        #            Útil cuando las CPTs son intermedias o quieres suavidad en utilidades.
+        self.chance_temperature = float(chance_temperature)
+        self.utility_temperature = float(utility_temperature)
+        # Modo de optimización (descompone el problema):
+        #   'both'         → optimiza CPTs y utilidades a la vez (caso general).
+        #   'utility_only' → fija las CPTs a sus valores originales y solo busca utilidades.
+        #                    Caso realista cuando las CPTs vienen de datos y solo se desconocen
+        #                    las preferencias del decisor.
+        #   'chance_only'  → fija las utilidades a las originales y solo busca CPTs.
+        #                    Útil para diagnóstico: preferencias dadas, dinámica por aprender.
+        if mode not in ('both', 'utility_only', 'chance_only'):
+            raise ValueError(f"mode debe ser 'both' | 'utility_only' | 'chance_only', no '{mode}'")
+        self.mode = mode
 
         self.chance_init_bounds = chance_init_bounds
         self.utility_init_bounds = utility_init_bounds
@@ -68,6 +86,11 @@ class IDRecovery:
 
         self.specs = self._build_specs()
         self.total_vars = sum(s['free_size'] for s in self.specs)
+        if self.total_vars == 0:
+            raise ValueError(
+                f"mode='{self.mode}' deja 0 variables libres: la red no tiene nodos del tipo "
+                "que querías optimizar (o todas las utilidades están ancladas por min_max_ut)."
+            )
 
         self.all_rules = self._compile_rules(rules_csv)
 
@@ -136,7 +159,20 @@ class IDRecovery:
             fixed = []  # lista de (flat_idx, valor_fijo), precomputado para no llamar a
                         # np.ravel_multi_index en cada decode.
 
-            if kind == 'utility' and self.min_max_ut:
+            # Modo descompuesto: si toca fijar este tipo de nodo, mete TODAS las
+            # entradas del nodo a su valor original (escalado para utilities) y
+            # anula la máscara — free_size pasa a 0 y no aporta variables a la EDA.
+            fully_fixed_by_mode = (
+                (self.mode == 'utility_only' and kind == 'chance') or
+                (self.mode == 'chance_only' and kind == 'utility')
+            )
+
+            if fully_fixed_by_mode:
+                original_vals = self.original_defs_scaled[name].flatten()
+                for flat_idx in range(size):
+                    fixed.append((flat_idx, float(original_vals[flat_idx])))
+                mask[:] = False
+            elif kind == 'utility' and self.min_max_ut:
                 original_u = self.original_defs[name]
                 best_flat = int(np.argmax(original_u))
                 worst_flat = int(np.argmin(original_u))
@@ -180,15 +216,18 @@ class IDRecovery:
             pos += s['free_size']
 
             if s['kind'] == 'chance':
-                raw_r = raw.reshape(s['shape'])
-                if self.decode_type == 'linear':
-                    # Shift-and-normalize: estira más la distribución que softmax
-                    x = raw_r - raw_r.min(axis=-1, keepdims=True) + 1e-9
-                    probs = x / x.sum(axis=-1, keepdims=True)
-                else:  # softmax_sigmoid (default)
+                if s['free_size'] == 0:
+                    # Nodo CPT fijo a su definición original (modo utility_only).
+                    val = np.zeros(s['size'])
+                    for flat, fv in s['fixed']:
+                        val[flat] = fv
+                    probs = val.reshape(s['shape'])
+                else:
+                    # softmax(raw / T). T<1 afila, T>1 estira hacia uniforme.
+                    raw_r = raw.reshape(s['shape']) / self.chance_temperature
                     res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
                     probs = res / res.sum(axis=-1, keepdims=True)
-                val = probs.flatten()
+                    val = probs.flatten()
 
                 # Entropía normalizada acumulada (suma sobre filas del simplex).
                 k = s['shape'][-1]
@@ -198,13 +237,10 @@ class IDRecovery:
                 H_per_row = -p_log_p.sum(axis=-1)
                 total_entropy_norm += float((H_per_row / log_k).sum())
             else:
+                # sigmoid(raw / T) * (u_max - u_min) + u_min. T<1 afila hacia los extremos,
+                # T>1 estira el rango cuasi-lineal alrededor del midpoint.
                 val = np.zeros(s['size'])
-                if self.decode_type == 'linear':
-                    # Map lineal desde utility_init_bounds a [u_min, u_max]
-                    lb, ub = self.utility_init_bounds
-                    val[s['mask']] = (raw - lb) / (ub - lb) * (self.u_max - self.u_min) + self.u_min
-                else:  # softmax_sigmoid (default)
-                    val[s['mask']] = expit(raw) * (self.u_max - self.u_min) + self.u_min
+                val[s['mask']] = expit(raw / self.utility_temperature) * (self.u_max - self.u_min) + self.u_min
                 for flat, fv in s['fixed']:
                     val[flat] = fv
 

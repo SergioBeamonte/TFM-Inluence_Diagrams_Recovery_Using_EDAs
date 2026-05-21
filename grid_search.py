@@ -53,7 +53,17 @@ TARGET_FITNESS = 1e-5
 RULES_PERCENTAGES = [5, 10, 20]  # porcentajes
 FITNESS_TYPES = ["binary", "margin", "softmax", "regret", "entropy"]
 STOP_MODES = ["top50"]
-DECODE_TYPES = ["softmax_sigmoid", "linear"]
+# Temperaturas para softmax (CPTs) y sigmoid (utilidades).
+#   T<1  → curva afilada. Buena si CPTs/utilidades son cuasi-binarias.
+#   T=1  → comportamiento clásico (default actual).
+#   T>1  → curva estirada/casi-lineal. Buena para CPTs/utilidades suaves.
+CHANCE_TEMPERATURES = [0.5, 1.0, 2.0]
+UTILITY_TEMPERATURES = [1.0, 3.0, 5.0]
+# Modos de descomposición del problema:
+#   'both'         → optimiza CPTs y utilidades a la vez (caso general).
+#   'utility_only' → fija CPTs a las originales, solo busca utilidades.
+#   'chance_only'  → fija utilidades, solo busca CPTs.
+MODES = ['both', 'utility_only', 'chance_only']
 
 # --- Repeticiones ---
 N_REPETITIONS = 5
@@ -75,14 +85,21 @@ def count_total_rules(rules_csv_path):
 
 
 def get_completed_combinations(results_csv_path):
-    """Lee el CSV de resultados y devuelve un set de combinaciones ya completadas."""
+    """Lee el CSV de resultados y devuelve un set de combinaciones ya completadas.
+
+    Filas antiguas sin columnas nuevas se consideran T=1.0 y mode='both' para que
+    runs históricos no se reejecuten al introducir nuevas dimensiones del grid.
+    """
     completed = set()
     if not os.path.exists(results_csv_path):
         return completed
     with open(results_csv_path, 'r', newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            key = (row.get('decode_type', 'softmax_sigmoid'), row['fitness_type'], row['stop_mode'], row['n_decision_rules'])
+            ct = row.get('chance_temperature') or '1.0'
+            ut = row.get('utility_temperature') or '1.0'
+            md = row.get('mode') or 'both'
+            key = (md, ct, ut, row['fitness_type'], row['stop_mode'], row['n_decision_rules'])
             completed.add(key)
     return completed
 
@@ -185,7 +202,8 @@ def average_histories(experiments):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 RESULTS_HEADER = [
-    'decode_type', 'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
+    'mode', 'chance_temperature', 'utility_temperature',
+    'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
     'total_rules',
     'stop_gen_mean', 'stop_gen_std', 'stop_gen_min', 'stop_gen_max',
     'fitness_mean', 'fitness_std',
@@ -197,7 +215,8 @@ RESULTS_HEADER = [
 ]
 
 CURVES_HEADER = [
-    'decode_type', 'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
+    'mode', 'chance_temperature', 'utility_temperature',
+    'fitness_type', 'stop_mode', 'n_decision_rules', 'n_decision_rules_pct',
     'generation', 'mean_fitness', 'mean_accuracy',
     'mean_error_chance', 'mean_error_utility', 'mean_entropy_norm', 'mean_util_dev']
 
@@ -235,7 +254,6 @@ def main():
     parser.add_argument('--min_max_ut', type=lambda x: x.lower() not in ('false', '0', 'no'),
                         default=None, help='Normalizar utilidades (True/False)')
     parser.add_argument('--optimizer_type', default=None, help='Tipo de optimizador')
-    parser.add_argument('--decode_type', default=None, help='Tipo de decodificación: softmax_sigmoid | linear')
     parser.add_argument('--base_folder', default=None,
                         help='Carpeta donde escribir los CSVs (default: BASE_FOLDER del script)')
     args = parser.parse_args()
@@ -250,10 +268,6 @@ def main():
         effective_config['min_max_ut'] = args.min_max_ut
     if args.optimizer_type is not None:
         effective_config['optimizer_type'] = args.optimizer_type
-
-    # decode_type puede fijarse por argumento (corre solo ese tipo) o dejarse en None
-    # para que el grid itere sobre DECODE_TYPES
-    fixed_decode_type = args.decode_type if args.decode_type is not None else None
 
     base_folder = args.base_folder if args.base_folder else BASE_FOLDER
     effective_rules_csv = effective_config['rules_csv']
@@ -281,9 +295,10 @@ def main():
     print(f"n_decision_rules (pct -> n): {rules_values}")
 
     # Generar todas las combinaciones
-    decode_types_to_run = [fixed_decode_type] if fixed_decode_type else DECODE_TYPES
     grid = list(itertools.product(
-        decode_types_to_run,
+        MODES,
+        CHANCE_TEMPERATURES,
+        UTILITY_TEMPERATURES,
         FITNESS_TYPES,
         STOP_MODES,
         rules_values,
@@ -308,35 +323,39 @@ def main():
     global_start = time.time()
     combo_done = len(completed)
     
-    for combo_idx, (decode_type, fitness_type, stop_mode, (rules_pct, n_rules)) in enumerate(grid, 1):
-        combo_key = (decode_type, fitness_type, stop_mode, str(n_rules))
+    for combo_idx, (mode, chance_t, utility_t, fitness_type, stop_mode, (rules_pct, n_rules)) in enumerate(grid, 1):
+        combo_key = (mode, f"{chance_t}", f"{utility_t}", fitness_type, stop_mode, str(n_rules))
 
         if combo_key in completed:
             print(f"[{combo_idx}/{total_combinations}] SALTANDO (ya completada): "
-                  f"decode={decode_type} | fitness={fitness_type} | stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
+                  f"mode={mode} | Tc={chance_t} | Tu={utility_t} | fitness={fitness_type} | "
+                  f"stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
             continue
 
         print(f"\n{'-' * 70}")
         print(f"[{combo_idx}/{total_combinations}] "
-              f"decode={decode_type} | fitness={fitness_type} | stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
+              f"mode={mode} | Tc={chance_t} | Tu={utility_t} | fitness={fitness_type} | "
+              f"stop={stop_mode} | rules={n_rules} ({rules_pct}%)")
         print(f"{'-' * 70}")
-        
+
         # --- Ejecutar N repeticiones ---
         experiments = []
         all_results = []
-        
+
         combo_start = time.time()
-        
+
         for rep in range(N_REPETITIONS):
             seed = BASE_SEED + rep
             print(f"\n  > Repetición {rep + 1}/{N_REPETITIONS} (seed={seed})")
-            
+
             config = {
                 **effective_config,
                 'n_decision_rules': n_rules,
                 'fitness_type': fitness_type,
                 'stop_mode': stop_mode,
-                'decode_type': decode_type,
+                'chance_temperature': chance_t,
+                'utility_temperature': utility_t,
+                'mode': mode,
                 'random_seed': seed,
             }
 
@@ -361,7 +380,9 @@ def main():
         util_devs     = [r['best_util_dev']      for r in all_results]
 
         row = {
-            'decode_type':         decode_type,
+            'mode':                mode,
+            'chance_temperature':  chance_t,
+            'utility_temperature': utility_t,
             'fitness_type':        fitness_type,
             'stop_mode':           stop_mode,
             'n_decision_rules':    n_rules,
@@ -394,7 +415,9 @@ def main():
         curve_rows = []
         for point in avg_curves:
             curve_rows.append({
-                'decode_type': decode_type,
+                'mode': mode,
+                'chance_temperature': chance_t,
+                'utility_temperature': utility_t,
                 'fitness_type': fitness_type,
                 'stop_mode': stop_mode,
                 'n_decision_rules': n_rules,
