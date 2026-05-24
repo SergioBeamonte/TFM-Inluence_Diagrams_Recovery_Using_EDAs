@@ -48,9 +48,10 @@ SIZE_GEN = 50       # tamaño de población por generación
 MAX_ITER = 60       # máximo de generaciones
 TARGET_FITNESS = 1e-5
 # KEDA necesita samples > variables para que gaussian_kde no sea singular. Con
-# bypass2 mode='both' tenemos 95 vars, así que truncation_length (SIZE_GEN*alpha)
-# debe ser > 95 → SIZE_GEN ≥ 192 con alpha=0.5. Subimos a 200 para márgen.
-SIZE_GEN_PER_OPTIMIZER = {'keda': 200}
+# bypass2 mode='both' tenemos 95 vars; truncation_length (SIZE_GEN*alpha) debe
+# ser > 95. Con sg=200 (trunc=100) seguía abortando ~46% de runs por degeneración
+# de la población tardía. Subimos a 400 (trunc=200) para dejar margen sobrado.
+SIZE_GEN_PER_OPTIMIZER = {'keda': 400}
 
 # --- Grid de búsqueda ---
 # GRID INICIAL del modelo pequeño: barrido amplio para evaluar el método y aislar

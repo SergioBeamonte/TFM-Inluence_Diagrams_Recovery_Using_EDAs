@@ -88,11 +88,54 @@ def discover_models() -> dict:
     return found
 
 
-def _fill_param_defaults(df: pd.DataFrame) -> pd.DataFrame:
+# Algunos CSVs antiguos (nhlv1/UMDA original) usan otro naming. Lo unificamos
+# para que el resto del dashboard no tenga que ramificar por modelo.
+_RESULTS_RENAME = {
+    'best_fitness_mean':     'fitness_mean',
+    'best_fitness_std':      'fitness_std',
+    'best_accuracy_mean':    'accuracy_mean',
+    'best_accuracy_std':     'accuracy_std',
+    'best_accuracy_min':     'accuracy_min',
+    'best_accuracy_max':     'accuracy_max',
+    'best_mse_chance_mean':  'mse_chance_mean',
+    'best_mse_chance_std':   'mse_chance_std',
+    'best_mse_utility_mean': 'mse_utility_mean',
+    'best_mse_utility_std':  'mse_utility_std',
+    'best_entropy_norm_mean':'entropy_norm_mean',
+    'best_entropy_norm_std': 'entropy_norm_std',
+    'best_util_dev_mean':    'util_dev_mean',
+    'best_util_dev_std':     'util_dev_std',
+}
+_RESULTS_DROP_LEGACY = {
+    'mean_accuracy_mean', 'mean_accuracy_std',
+    'mean_mse_chance_mean', 'mean_mse_chance_std',
+    'mean_mse_chance_min', 'mean_mse_chance_max',
+    'best_mse_chance_min', 'best_mse_chance_max',
+    'mean_mse_utility_mean', 'mean_mse_utility_std',
+    'mean_mse_utility_min', 'mean_mse_utility_max',
+    'best_mse_utility_min', 'best_mse_utility_max',
+    'mean_entropy_norm_mean', 'mean_entropy_norm_std',
+    'mean_entropy_norm_min', 'mean_entropy_norm_max',
+    'best_entropy_norm_min', 'best_entropy_norm_max',
+    'mean_util_dev_mean', 'mean_util_dev_std',
+    'mean_util_dev_min', 'mean_util_dev_max',
+    'best_util_dev_min', 'best_util_dev_max',
+    'mean_fitness',
+}
+
+
+def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Renombra columnas históricas a las canónicas y rellena defaults."""
+    df = df.rename(columns={k: v for k, v in _RESULTS_RENAME.items() if k in df.columns})
+    df = df.drop(columns=[c for c in _RESULTS_DROP_LEGACY if c in df.columns])
+    # Defaults para parámetros nuevos no presentes en CSVs antiguos.
     for col, default in [('mode', 'both'), ('sampling_mode', 'non_symmetric'),
                           ('chance_temperature', 1.0), ('utility_temperature', 1.0)]:
         if col not in df.columns:
             df[col] = default
+    # Normaliza tipo de temperaturas a float (algunos CSVs las guardaron como int).
+    for col in ('chance_temperature', 'utility_temperature'):
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(1.0)
     return df
 
 
@@ -104,12 +147,12 @@ def load_all(models_frozen):
             df = pd.read_csv(rp)
             if not df.empty:
                 df.insert(0, "model", model)
-                res_list.append(_fill_param_defaults(df))
+                res_list.append(_normalize_columns(df))
         if cp and os.path.exists(cp):
             df = pd.read_csv(cp)
             if not df.empty:
                 df.insert(0, "model", model)
-                cur_list.append(_fill_param_defaults(df))
+                cur_list.append(_normalize_columns(df))
     df_r = pd.concat(res_list, ignore_index=True) if res_list else pd.DataFrame()
     df_c = pd.concat(cur_list, ignore_index=True) if cur_list else pd.DataFrame()
     return df_r, df_c
@@ -185,16 +228,20 @@ with st.sidebar:
     ref = df_r if not df_r.empty else df_c
 
     all_models  = sorted(ref["model"].unique())
-    all_mode    = sorted(ref["mode"].unique())
-    all_samp    = sorted(ref["sampling_mode"].unique())
-    all_fitness = sorted(ref["fitness_type"].unique())
-    all_pct     = sorted(ref["n_decision_rules_pct"].unique())
+    all_mode    = sorted(ref["mode"].dropna().unique())
+    all_samp    = sorted(ref["sampling_mode"].dropna().unique())
+    all_fitness = sorted(ref["fitness_type"].dropna().unique())
+    all_pct     = sorted(ref["n_decision_rules_pct"].dropna().unique())
+    all_tc      = sorted(ref["chance_temperature"].dropna().unique())
+    all_tu      = sorted(ref["utility_temperature"].dropna().unique())
 
     sel_models  = st.multiselect("Modelos", all_models, default=all_models)
     sel_mode    = st.multiselect("Modo descomposición", all_mode, default=all_mode)
     sel_samp    = st.multiselect("Muestreo", all_samp, default=all_samp)
     sel_fitness = st.multiselect("Fitness", all_fitness, default=all_fitness)
     sel_pct     = st.multiselect("% reglas decisión", all_pct, default=all_pct)
+    sel_tc      = st.multiselect("T softmax (CPTs)", all_tc, default=all_tc)
+    sel_tu      = st.multiselect("T sigmoid (Util.)", all_tu, default=all_tu)
 
     st.divider()
     st.subheader("📐 Exportación")
@@ -214,11 +261,20 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         & df["sampling_mode"].isin(sel_samp)
         & df["fitness_type"].isin(sel_fitness)
         & df["n_decision_rules_pct"].isin(sel_pct)
+        & df["chance_temperature"].isin(sel_tc)
+        & df["utility_temperature"].isin(sel_tu)
     ].copy()
 
 
 df_rf = apply_filters(df_r)
 df_cf = apply_filters(df_c)
+
+# Filas con accuracy_mean NaN no son útiles para nada — las quitamos para evitar
+# romper agregaciones y plots (KEDA con mode=both abortado deja NaN).
+n_drop = df_rf['accuracy_mean'].isna().sum() if 'accuracy_mean' in df_rf.columns else 0
+if n_drop:
+    st.info(f"Excluyendo {n_drop} filas con `accuracy_mean=NaN` (corridas abortadas).")
+    df_rf = df_rf.dropna(subset=['accuracy_mean']).reset_index(drop=True)
 
 if df_rf.empty:
     st.warning("No hay datos para los filtros seleccionados.")
@@ -255,17 +311,27 @@ with tab_bars:
                                 index=2)
 
     color_arg = None if color_by == '(ninguno)' else color_by
+    if color_arg == group_by:
+        st.warning("El eje x y el color son la misma variable. Cambia uno.")
+        st.stop()
     agg_cols = [group_by] + ([color_arg] if color_arg else [])
-    agg = df_rf.groupby(agg_cols).agg(
+    agg = df_rf.groupby(agg_cols, dropna=False).agg(
         mean=('accuracy_mean', 'mean'),
         std=('accuracy_std', 'mean'),
         n=('accuracy_mean', 'count'),
     ).reset_index()
-    # CI con el N efectivo: cada fila ya es media de n_reps × n_combos. Conservador:
-    # tomamos std existente y aplicamos t(n_reps) sobre cada celda.
-    agg['ci'] = ci95_halfwidth(agg['std'].values, n_reps)
+    agg = agg.dropna(subset=['mean'])  # cells vacías → no plotear
+    if agg.empty:
+        st.warning("No hay datos para esta combinación de ejes.")
+        st.stop()
+    # CI conservador: t(n_reps) sobre la std agregada por celda
+    agg['ci'] = ci95_halfwidth(agg['std'].fillna(0).values, n_reps)
 
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
+    # Ancho auto si hay muchas categorías
+    n_x = agg[group_by].nunique()
+    n_c = agg[color_arg].nunique() if color_arg else 1
+    auto_w = max(fig_width, n_x * max(1.0, n_c * 0.45) + 1.5)
+    fig, ax = plt.subplots(figsize=(auto_w, fig_height))
 
     if color_arg is None:
         x_labels = agg[group_by].astype(str).tolist()
@@ -279,21 +345,53 @@ with tab_bars:
         subs   = sorted(agg[color_arg].astype(str).unique())
         x = np.arange(len(groups))
         w = 0.8 / max(len(subs), 1)
+        # Index por (group, color) para lookup limpio
+        agg_idx = agg.set_index([agg[group_by].astype(str), agg[color_arg].astype(str)])
         for i, sub in enumerate(subs):
-            d = agg[agg[color_arg].astype(str) == sub].set_index(agg.loc[agg[color_arg].astype(str) == sub, group_by].astype(str))
-            means = [d.loc[g, 'mean'] if g in d.index else 0 for g in groups]
-            cis   = [d.loc[g, 'ci']   if g in d.index else 0 for g in groups]
-            ax.bar(x + i * w - 0.4 + w / 2, means, w, yerr=cis, capsize=2,
+            means, cis = [], []
+            for g in groups:
+                key = (g, sub)
+                if key in agg_idx.index:
+                    row = agg_idx.loc[key]
+                    # Si hay duplicados, .loc devuelve DataFrame: tomamos la media
+                    if isinstance(row, pd.DataFrame):
+                        means.append(row['mean'].mean())
+                        cis.append(row['ci'].mean())
+                    else:
+                        means.append(row['mean'])
+                        cis.append(row['ci'])
+                else:
+                    means.append(np.nan)
+                    cis.append(0)
+            # NaN → no se dibuja, evitamos barras a 0 engañosas
+            xs = x + i * w - 0.4 + w / 2
+            mask = ~np.isnan(means)
+            ax.bar(np.array(xs)[mask], np.array(means)[mask], w,
+                   yerr=np.array(cis)[mask], capsize=2,
                    color=CB_COLORS[i % len(CB_COLORS)], edgecolor='black', linewidth=0.5,
                    label=str(sub))
         ax.set_xticks(x)
         ax.set_xticklabels(groups, rotation=0)
-        ax.legend(loc='lower right', ncol=min(len(subs), 3), title=color_arg)
+        # Leyenda DEBAJO del plot, horizontal, fuera del área de ejes.
+        # Así no tapa barras altas (problema típico con accuracy ≈ 100 %).
+        ax.legend(
+            loc='upper center',
+            bbox_to_anchor=(0.5, -0.18),
+            ncol=min(len(subs), 4),
+            title=color_arg,
+            frameon=False,
+            borderaxespad=0.0,
+        )
 
     ax.set_xlabel(group_by.replace('_', ' '))
     ax.set_ylabel(r'Accuracy media (\%)')
     ax.set_title(f'Comparación por {group_by} (CI 95 %, N={n_reps})')
-    ax.set_ylim(bottom=max(0, agg['mean'].min() - 10))
+    # Y-lim seguro frente a NaN/empty
+    y_low = agg['mean'].min()
+    if pd.notna(y_low):
+        ax.set_ylim(bottom=max(0, y_low - 10))
+    # tight_layout no recorta artistas externos; savefig usa bbox='tight' (rcParams).
+    fig.tight_layout()
 
     render_fig(fig, f"bars_{group_by}_{color_arg or 'none'}", key_prefix="bars")
 
@@ -434,40 +532,63 @@ with tab_heat:
                        ['accuracy_mean', 'mse_chance_mean', 'mse_utility_mean', 'stop_gen_mean'],
                        horizontal=True)
 
+    # Validaciones de los ejes elegidos
+    if x_ax == y_ax:
+        st.warning("Eje X e Y son iguales; elige columnas distintas.")
+        st.stop()
+    if metric not in df_rf.columns:
+        st.warning(f"La métrica `{metric}` no está disponible en los datos filtrados.")
+        st.stop()
+
+    series_metric = pd.to_numeric(df_rf[metric], errors='coerce')
+    if series_metric.dropna().empty:
+        st.warning(f"`{metric}` está vacía o no es numérica para los filtros actuales.")
+        st.stop()
+
     if facet == '(ninguna)':
         facets = [None]
         sub_dfs = [df_rf]
     else:
-        facets = sorted(df_rf[facet].astype(str).unique())
+        facets = sorted(df_rf[facet].dropna().astype(str).unique())
         sub_dfs = [df_rf[df_rf[facet].astype(str) == f] for f in facets]
+        if not facets:
+            st.warning(f"No hay valores no-nulos en `{facet}` para facetar.")
+            st.stop()
 
     fig, axes = plt.subplots(1, len(facets), figsize=(fig_width * len(facets), fig_height),
                               squeeze=False, sharey=True)
-    vmin, vmax = df_rf[metric].min(), df_rf[metric].max()
+    vmin, vmax = float(series_metric.min()), float(series_metric.max())
+    if vmin == vmax:        # evita división por 0 al normalizar colores de anotación
+        vmax = vmin + 1e-9
 
+    im = None
     for ax, sub, fname in zip(axes[0], sub_dfs, facets):
-        if sub.empty:
-            ax.set_title(f"{fname} (vacío)")
+        if sub.empty or sub[metric].dropna().empty:
+            ax.set_title(f"{facet}={fname} (vacío)" if fname else "(vacío)")
+            ax.set_xticks([]); ax.set_yticks([])
             continue
         pv = sub.pivot_table(values=metric, index=y_ax, columns=x_ax, aggfunc='mean')
         im = ax.imshow(pv.values, aspect='auto', cmap=VIRIDIS, vmin=vmin, vmax=vmax)
-        ax.set_xticks(range(len(pv.columns))); ax.set_xticklabels(pv.columns, rotation=0)
-        ax.set_yticks(range(len(pv.index)));   ax.set_yticklabels(pv.index)
+        ax.set_xticks(range(len(pv.columns)))
+        ax.set_xticklabels([str(c) for c in pv.columns], rotation=0)
+        ax.set_yticks(range(len(pv.index)))
+        ax.set_yticklabels([str(c) for c in pv.index])
         # Anotaciones
         for i in range(len(pv.index)):
             for j in range(len(pv.columns)):
                 v = pv.values[i, j]
-                if not np.isnan(v):
+                if pd.notna(v):
                     color = 'white' if (v - vmin) / (vmax - vmin + 1e-9) < 0.5 else 'black'
-                    ax.text(j, i, f"{v:.1f}", ha='center', va='center', color=color, fontsize=8)
+                    ax.text(j, i, f"{v:.2f}", ha='center', va='center', color=color, fontsize=8)
         ax.set_xlabel(x_ax.replace('_', ' '))
         if ax is axes[0, 0]:
             ax.set_ylabel(y_ax.replace('_', ' '))
         if fname is not None:
             ax.set_title(f"{facet}={fname}")
 
-    cbar = fig.colorbar(im, ax=axes[0, :].tolist(), shrink=0.8, pad=0.02)
-    cbar.set_label(metric.replace('_', ' '))
+    if im is not None:
+        cbar = fig.colorbar(im, ax=axes[0, :].tolist(), shrink=0.8, pad=0.02)
+        cbar.set_label(metric.replace('_', ' '))
     fig.suptitle(f'{metric} por {y_ax} × {x_ax}', y=1.02)
     render_fig(fig, f"heatmap_{metric}_{x_ax}_{y_ax}_{facet}", key_prefix="heat")
 
@@ -492,6 +613,9 @@ with tab_curves:
             "Util Dev":         "mean_util_dev",
         }
         avail = {k: v for k, v in metric_map.items() if v in df_cf.columns}
+        if not avail:
+            st.warning("No se encontraron métricas estándar en el CSV de curvas filtrado.")
+            st.stop()
         c1, c2 = st.columns(2)
         sel_metric_label = c1.selectbox("Métrica", list(avail.keys()))
         sel_metric = avail[sel_metric_label]
@@ -500,12 +624,19 @@ with tab_curves:
                                      'n_decision_rules_pct'],
                                     index=1)
 
-        agg = df_cf.groupby([color_curve, 'generation'])[sel_metric].agg(['mean', 'std']).reset_index()
-        cats = sorted(agg[color_curve].astype(str).unique())
+        df_cf_v = df_cf.dropna(subset=[sel_metric]).copy()
+        if df_cf_v.empty:
+            st.warning(f"`{sel_metric}` está vacía para los filtros actuales.")
+            st.stop()
+
+        agg = df_cf_v.groupby([color_curve, 'generation'])[sel_metric].agg(['mean', 'std']).reset_index()
+        cats = sorted(agg[color_curve].dropna().astype(str).unique())
 
         fig, ax = plt.subplots(figsize=(fig_width, fig_height))
         for i, c in enumerate(cats):
             d = agg[agg[color_curve].astype(str) == c].sort_values('generation')
+            if d.empty:
+                continue
             x = d['generation'].values
             m = d['mean'].values
             s = d['std'].fillna(0).values
@@ -516,7 +647,17 @@ with tab_curves:
         ax.set_xlabel("Generación")
         ax.set_ylabel(sel_metric_label)
         ax.set_title(f"Convergencia — {sel_metric_label}")
-        ax.legend(title=color_curve, loc='best')
+        if cats:
+            # Leyenda a la derecha del plot, fuera del área de ejes.
+            # 'best' a veces se sienta encima de las curvas; fuera no compite con datos.
+            ax.legend(
+                title=color_curve,
+                loc='center left',
+                bbox_to_anchor=(1.02, 0.5),
+                frameon=False,
+                borderaxespad=0.0,
+            )
+        fig.tight_layout()
         render_fig(fig, f"curve_{sel_metric}_{color_curve}", key_prefix="curve")
 
 
@@ -527,14 +668,19 @@ with tab_curves:
 with tab_tables:
     st.subheader("Mejor configuración por (modelo × modo)")
 
-    idx = df_rf.groupby(['model', 'mode'])['accuracy_mean'].idxmax()
-    best = df_rf.loc[idx, [
-        'model', 'mode', 'sampling_mode', 'fitness_type',
-        'chance_temperature', 'utility_temperature',
-        'n_decision_rules_pct', 'accuracy_mean', 'accuracy_std',
-        'accuracy_min', 'accuracy_max', 'ci95',
-        'mse_chance_mean', 'mse_utility_mean',
-    ]].sort_values('accuracy_mean', ascending=False)
+    # idxmax falla si hay grupos con todos NaN. Filtramos antes.
+    df_for_idx = df_rf.dropna(subset=['accuracy_mean']).copy()
+    if df_for_idx.empty:
+        st.warning("No hay filas con accuracy_mean válido tras filtrar.")
+        st.stop()
+    idx = df_for_idx.groupby(['model', 'mode'])['accuracy_mean'].idxmax()
+    cols_keep = ['model', 'mode', 'sampling_mode', 'fitness_type',
+                 'chance_temperature', 'utility_temperature',
+                 'n_decision_rules_pct', 'accuracy_mean', 'accuracy_std',
+                 'accuracy_min', 'accuracy_max', 'ci95',
+                 'mse_chance_mean', 'mse_utility_mean']
+    cols_keep = [c for c in cols_keep if c in df_for_idx.columns]
+    best = df_for_idx.loc[idx, cols_keep].sort_values('accuracy_mean', ascending=False)
 
     st.dataframe(
         best.style.format({
