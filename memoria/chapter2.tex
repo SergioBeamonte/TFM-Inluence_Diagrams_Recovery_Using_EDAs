@@ -22,7 +22,7 @@ study of Chapter~4.
 A \emph{Decision Support System} (DSS) is a model or piece of
 software designed to assist decision-makers by facilitating access to
 relevant data and by applying analytical models and techniques to
-ill-structured problems~\cite{insua2005,bielza2002,howard2008foundations}.
+ill-structured problems~\cite{insua2005,howard2008foundations,shenoy2009eolss}.
 The role of a DSS is not to replace the decision-maker but to provide
 structured access to information and a principled way of evaluating
 alternatives before a final decision is reached.
@@ -80,8 +80,13 @@ states of $C_i$. The utility node carries a real-valued mapping
    u : \prod_{X\in\Pi(V)}\Omega_X \longrightarrow \mathbb{R},
 \]
 where $\Omega_{D_i}\equiv\mathcal{A}_{D_i}$ for any decision parent.
-The collection of all CPTs and the utility table is the
-\emph{parameter vector} of the diagram, written $\boldsymbol{\Theta}$.
+The function $u$ encodes the preferences of the decision-maker in
+the sense of Multi-Attribute Utility Theory, and when its arguments
+satisfy the usual independence conditions it admits an additive or
+multiplicative decomposition that drastically simplifies its
+elicitation~\cite{riosinsua2002maut}. The collection of all CPTs
+and the utility table is the \emph{parameter vector} of the
+diagram, written $\boldsymbol{\Theta}$.
 
 \begin{remark}[Combinatorial explosion]
 \label{rem:explosion}
@@ -127,7 +132,7 @@ and eliminating nodes from the graph.
 In practice the structure of the ID is elicited from the expert in a
 small number of modelling sessions, but the numerical
 parameterisation $\boldsymbol{\Theta}$ is far harder to obtain. The
-classical cycle of~\cite{bielza2002,bielza2010modeling} proceeds in
+classical cycle of~\cite{bielza2000issues,bielza2010modeling} proceeds in
 five stages — problem identification, enumeration of alternatives,
 modelling, evaluation and sensitivity analysis — and the modelling
 stage alone accounts for the bulk of the cost. As anticipated in

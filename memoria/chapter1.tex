@@ -12,9 +12,10 @@
 A \emph{Decision Support System} (DSS) is an interactive
 computational tool designed to assist a decision-maker in the analysis
 of unstructured problems by combining data, formal models and
-analytical techniques~\cite{insua2005,bielza2002}. Within this broad
-family, \emph{Influence Diagrams} (IDs)~\cite{howard2005influence,
-koller2009pgm} have become a particularly compact graphical formalism:
+analytical techniques~\cite{insua2005,howard2008foundations}. Within
+this broad family, \emph{Influence
+Diagrams}~(IDs)\cite{howard2005influence,koller2009pgm,shenoy2009eolss}
+have become a particularly compact graphical formalism:
 a single directed acyclic graph encodes simultaneously the
 probabilistic structure of the problem (chance nodes), the
 controllable choices of the agent (decision nodes) and her
@@ -34,10 +35,12 @@ often be elicited from a domain expert in a relatively small number of
 modelling sessions, the parameterisation grows exponentially with the
 connectivity of the graph and becomes the real bottleneck of any
 realistic ID-based DSS~\cite{bielza2010modeling}. A well-known
-illustration is the neonatal-jaundice ID of Bielza et
-al.~\cite{bielza2000structural}: more than 8\,000 probability entries
-and over a hundred utility values have to be elicited from clinicians
-before the model can be put to use.
+illustration is the neonatal-jaundice ID of G{\'o}mez et
+al.~\cite{gomez2007jaundice}: more than 8\,000 probability entries
+and over a hundred utility values had to be elicited from clinicians
+before the model could be deployed, and the very same effort is
+documented as the dominant cost of the project in the companion
+analysis of Bielza et al.~\cite{bielza2000issues}.
 
 This thesis addresses precisely this parameter-elicitation problem.
 We assume that the structure of the ID is given, that all variables
@@ -94,7 +97,9 @@ is of immediate practical interest include:
     \item \textbf{Clinical decision support.}
           Risk stratification, triage, treatment selection or the
           management of chronic diseases — the neonatal-jaundice ID
-          of~\cite{bielza2000structural} is a canonical example.
+          of~\cite{gomez2007jaundice} is a canonical example, and
+          the demand for evidence-based decision aids in clinical
+          practice is by now well documented~\cite{dowding2004evidence}.
     \item \textbf{Industrial maintenance and safety.}
           Inspection scheduling, replacement-vs-repair choices, and
           safety-critical operations in which expert rules are
@@ -220,6 +225,22 @@ The recent survey of Vonk and
 Gonzalez-Soto~\cite{vonk2026graphical} gives the most up-to-date
 panorama of these complementary approaches.
 
+\subsection{The inverse problem: rules from CPTs}
+
+A complementary line of work, also rooted at UPM, attacks the
+\emph{inverse} of the problem studied in this thesis. Fern{\'a}ndez
+del Pozo, Bielza and Lucas~\cite{fdezdelpozo2010cluster} propose the
+\textsc{Cluster-KBM2L} methodology, which starts from a fully
+specified CPT (more than 8\,000 entries in the case of their
+non-Hodgkin lymphoma ID) and extracts \emph{symbolic prognostic
+profiles} — qualitative rules of the form ``high-risk patient with
+favourable chemotherapy response'' — by clustering the conditional
+distributions and synthesising interpretable descriptions for each
+cluster. Both works thus address the same interface between the
+numerical and the symbolic representation of an ID, but from
+opposite directions: \cite{fdezdelpozo2010cluster} goes from CPTs
+to rules, whereas this thesis goes from rules to CPTs.
+
 \subsection{Research gap and positioning of this work}
 
 The systematic review summarised above leads to a clear conclusion:
@@ -252,7 +273,7 @@ objectives:
     \item Implement the resulting system on top of the
           \textsc{EDAspy} library~\cite{soloviev2024edaspy} and the
           \textsc{SMILE} inference engine~\cite{genie}, using the
-          neonatal-jaundice ID of~\cite{bielza2000structural} as the
+          neonatal-jaundice ID of~\cite{gomez2007jaundice} as the
           benchmark.
     \item Empirically evaluate the impact of the main
           hyperparameters (population size, selection ratio, dead

@@ -11,7 +11,9 @@ Influence Diagram from a partial expert rule base $\mathcal{R}$.
 The system is built on top of three external components: the
 \textsc{SMILE} reasoning engine and its \texttt{pysmile} bindings,
 which provide the \texttt{.xdsl} parser and the Shachter evaluation
-algorithm~\cite{shachter1986evaluating,genie}; \texttt{NumPy} for the
+algorithm with its underlying evidence-propagation
+machinery~\cite{shachter1986evaluating,ezawa1994evidence,genie};
+\texttt{NumPy} for the
 in-memory representation of the CPTs; and \textsc{EDAspy}, the
 open-source library of Soloviev et al.~\cite{soloviev2024edaspy} that
 implements the EDA variants discussed in
@@ -225,14 +227,20 @@ where $\mathbf{pa}^{+}$ and $\mathbf{pa}^{-}$ are the ``best'' and
 ``worst'' configurations declared by the expert at initialisation.
 \end{definition}
 
-\begin{remark}
+\begin{remark}[Identifiability]
 Scaling to $[0,10]$ is a modelling convention only. The Shachter
 algorithm is invariant under positive affine transformations of $u$,
 so only the relative ordering of utility values affects the optimal
 policy. The two anchor entries fix the origin and the scale of the
 utility function and uniquely identify it up to the remaining
 $s_V-2$ free parameters; without them the EDA would be free to drift
-along the affine direction without changing the policy.
+along the affine direction without changing the policy. The same
+partial-identifiability issue is studied formally by Lazzati and
+Metelli~\cite{lazzati2025utilities} for the inverse-reinforcement
+learning of utilities in MDPs, where they characterise the set of
+utility functions that rationalise a given behaviour; the two
+anchor points are precisely the minimal information that breaks
+that ambiguity in our setting.
 \end{remark}
 
 % ==============================================================
@@ -510,4 +518,4 @@ and the continuous UMDA of \textsc{EDAspy} drives the search by
 minimising the rule-mismatch cost of Definition~\ref{def:cost}. The
 next chapter uses this pipeline to assess empirically the quality of
 the recovered parameters on the neonatal-jaundice benchmark of
-Bielza et al.~\cite{bielza2000structural}.
+G{\'o}mez et al.~\cite{gomez2007jaundice}.
