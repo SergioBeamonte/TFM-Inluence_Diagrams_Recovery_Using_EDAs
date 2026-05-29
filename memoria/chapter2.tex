@@ -5,15 +5,12 @@
 \chapter{Theoretical Framework}
 \label{ch:framework}
 
-This chapter introduces the theoretical background that the rest of
-the thesis relies on. We start with Decision Support Systems and
-their graphical formulation as Influence Diagrams, fix the formal
+This chapter introduces the theoretical background on which the rest of
+the thesis relies. We start with Decision Support Systems and their graphical formulation as Influence Diagrams, fix the formal
 definitions that are used in subsequent chapters and motivate the
 parameter-estimation problem that we tackle. We then present
-Estimation of Distribution Algorithms with the level of detail
-required to justify our design choices, including the specific
-variants and the convergence guarantees that ground the empirical
-study of Chapter~4.
+Estimation of Distribution Algorithms, justify our design choices, including the specific
+variants and the convergence guarantees that ground the empirical study of Chapter~4.
 
 % ==============================================================
 \section{Decision Support Systems and Influence Diagrams}
@@ -21,19 +18,19 @@ study of Chapter~4.
 
 A \emph{Decision Support System} (DSS) is a model or piece of
 software designed to assist decision-makers by facilitating access to
-relevant data and by applying analytical models and techniques to
-ill-structured problems~\cite{insua2005,howard2008foundations,shenoy2009eolss}.
+relevant data and by applying analytical techniques to
+poorly structured problems~\cite{insua2005,shenoy2009eolss}.
 The role of a DSS is not to replace the decision-maker but to provide
-structured access to information and a principled way of evaluating
+structured access to information and a systematic way of evaluating
 alternatives before a final decision is reached.
 
 Among the many graphical formalisms available, \emph{Influence
 Diagrams} (IDs) have established themselves as one of the most
 compact and expressive
 representations~\cite{howard2005influence,koller2009pgm}. An ID
-is a directed acyclic graph whose nodes encode the three fundamental
-ingredients of a sequential decision problem — random variables,
-controllable choices and preferences — and whose arcs encode
+is a directed acyclic graph (DAG) whose nodes encode the three fundamental
+ingredients of a sequential decision problem: random variables,
+controllable choices and preferences, and whose arcs encode
 conditional dependencies and informational precedence.
 
 \subsection{Formal definition}
@@ -57,30 +54,30 @@ $\mathcal{D} = (\mathbf{C}, \mathbf{D}, V, \mathcal{E})$ where:
 \end{definition}
 
 For the ID to admit a well-defined evaluation procedure the graph
-must be \emph{regular}: it is a DAG, the value node has no
-successors, and the decisions can be linearly ordered by a directed
-path that traverses all of them. Throughout this work all IDs are
+must be \emph{regular}. It is, a DAG where the value node has no successors and the decisions can be linearly ordered by a directed path that traverses all of them. Throughout this work all IDs are
 assumed to be regular.
 
 \subsection{Quantitative parameterisation}
 
 Each chance node $C_i$ carries a \emph{conditional probability
 table} (CPT) $\theta_{C_i}$ that assigns to every configuration of
-its probabilistic parents $\Pi(C_i)$ a probability distribution over
+its probabilistic parents $\mathrm{Pa}(C_i)$ a probability distribution over
 $\Omega_{C_i}$:
 \[
    \theta_{C_i}\bigl(\cdot \mid \mathbf{pa}\bigr) \;\in\;
    \Delta(\Omega_{C_i})
    \qquad
-   \forall \mathbf{pa}\in\prod_{C_j\in\Pi(C_i)}\Omega_{C_j},
+   \forall \mathbf{pa}\in\prod_{C_j\in\mathrm{Pa}(C_i)}\Omega_{C_j},
 \]
 where $\Delta(\Omega_{C_i})$ denotes the probability simplex over the
 states of $C_i$. The utility node carries a real-valued mapping
 \[
-   u : \prod_{X\in\Pi(V)}\Omega_X \longrightarrow \mathbb{R},
+   u : \!\!\prod_{C\in\mathrm{Pa}(V)\cap\mathbf{C}}\!\!\Omega_C
+       \;\times\!\!\prod_{D\in\mathrm{Pa}(V)\cap\mathbf{D}}\!\!\mathcal{A}_D
+       \;\longrightarrow\; \mathbb{R},
 \]
-where $\Omega_{D_i}\equiv\mathcal{A}_{D_i}$ for any decision parent.
-The function $u$ encodes the preferences of the decision-maker in
+ranging over the states of its chance parents and the actions of its
+decision parents. The function $u$ encodes the preferences of the decision-maker in
 the sense of Multi-Attribute Utility Theory, and when its arguments
 satisfy the usual independence conditions it admits an additive or
 multiplicative decomposition that drastically simplifies its
@@ -100,7 +97,7 @@ necessary.
 \end{remark}
 
 A \emph{decision rule} for $D_i$ is a mapping
-$\delta_i : \prod_{C_j\in\Pi_{\text{info}}(D_i)}\Omega_{C_j}
+$\delta_i : \prod_{C_j\in\mathrm{Pa}_{\text{info}}(D_i)}\Omega_{C_j}
 \longrightarrow \mathcal{A}_{D_i}$
 that prescribes an action for every observable context. The
 collection $\boldsymbol{\delta}=(\delta_1,\ldots,\delta_k)$ over all
@@ -114,7 +111,16 @@ policy under a parameter vector $\boldsymbol{\Theta}$ is
    \prod_{C_i\in\mathbf{C}}
    \theta_{C_i}\!\bigl(c_i \mid \mathbf{pa}(c_i)\bigr),
 \end{equation}
-and the \emph{optimal policy} is
+where $\mathbf{c}=(c_1,\ldots,c_n)$ is a complete \emph{scenario} — a
+joint instantiation of all the chance nodes, with $c_i\in\Omega_{C_i}$
+— and the sum ranges over the set of all possible scenarios
+$\prod_{C_i\in\mathbf{C}}\Omega_{C_i}$. For each scenario,
+$\mathbf{pa}(c_i)$ denotes the values its parents take within that same
+scenario and $\boldsymbol{\delta}(\mathbf{c})$ the actions prescribed
+by the policy. Thus each scenario is weighted by its joint probability
+(the product of CPTs) and scored by its utility, and the expectation
+sums these contributions over every possible state of the world.
+The \emph{optimal policy} is
 $\boldsymbol{\delta}^{\!*}(\boldsymbol{\Theta}) =
 \arg\max_{\boldsymbol{\delta}}
 \mathrm{EU}(\boldsymbol{\delta}\mid\boldsymbol{\Theta})$.
@@ -278,96 +284,43 @@ non-parametric nodes (SPEDA)~\cite{soloviev2023speda}. They are of
 interest for multi-modal problems and are listed in the perspectives
 chapter.
 
-\subsection{Selection and exploration--exploitation}
+\subsection{Why the algorithm converges}
 
-The most common selection scheme — and the one adopted in this work
-— is \emph{truncation}: only the top fraction $\mu$ of the population
-contributes to $\hat{p}_t$.
+The reason an EDA makes progress is intuitive and needs no heavy
+machinery. At each generation it keeps only the best fraction of the
+population — a \emph{truncation} selection that retains the top
+$\mu\in(0,1)$ of the individuals — and refits the probabilistic model
+$\hat{p}_t$ to that elite. Because the selected individuals
+concentrate in the better-scoring regions of the search space, the
+model fitted to them places its mass there, so the next population,
+sampled from $\hat{p}_t$, is on average better than the previous one.
 
-\begin{proposition}[Diversity--convergence trade-off]
-\label{prop:tradeoff}
-Under truncation selection with ratio $\mu\in(0,1)$, decreasing
-$\mu$ raises the selection pressure, shrinks the support of the
-estimated model and accelerates convergence at the cost of an
-increased risk of premature convergence to a local optimum.
-\end{proposition}
+Repeating the loop has two coupled effects. The model \emph{drifts}
+towards regions of lower cost, generation after generation, while its
+variance \emph{contracts} as the surviving individuals become more
+alike. The drift is what improves the solutions; the contraction is
+what makes the search eventually settle on a concrete configuration.
+When the variance has shrunk to the point where new samples barely
+differ from one another, the population has converged.
 
-\begin{proof}[Sketch]
-As $\mu\to 0$ the selected set shrinks to the current best
-individual and $\hat{p}_t$ concentrates its mass arbitrarily close to
-it. As $\mu\to 1$ no information is extracted from the fitness
-function and the algorithm degenerates to uniform random search.
-The optimal trade-off lies in between and is problem-dependent.
-\end{proof}
+The selection ratio $\mu$ balances these two effects. A small $\mu$
+keeps only a handful of top individuals: the model contracts quickly
+and the search converges fast, but it may lock onto the first good
+region it finds. A large $\mu$ keeps almost the whole population, so
+little information is extracted from the cost function and the search
+behaves almost like random sampling. A useful value lies in between
+and is tuned empirically in Chapter~4.
 
-\subsection{Constraint handling: simplex projection}
-
-The CPT rows of the ID must lie on the probability simplex
-$\Delta^{r-1}=\{p\in\mathbb{R}_{\geq 0}^{r}\mid\sum_i p_i = 1\}$.
-Gaussian samples in $\mathbb{R}^d$ generally violate this constraint
-and must be repaired.
-
-\begin{definition}[Euclidean simplex projection]
-The projection of $\mathbf{v}\in\mathbb{R}^{r}$ onto $\Delta^{r-1}$
-is the unique vector
-\[
-    \Pi_{\Delta}(\mathbf{v}) = \arg\min_{\mathbf{p}\in\Delta^{r-1}}
-    \lVert\mathbf{p}-\mathbf{v}\rVert_2.
-\]
-\end{definition}
-
-\begin{proposition}[Sorting algorithm of Duchi et al.]
-\label{prop:duchi}
-$\Pi_{\Delta}(\mathbf{v})$ can be computed exactly in $O(r\log r)$
-time by sorting $\mathbf{v}$ and finding a threshold $\rho$ such that
-$p_i=\max(v_i-\rho,0)$ satisfies $\sum_i p_i = 1$.
-\end{proposition}
-
-\begin{proof}
-See~\cite{duchi2008projections} for the standard sorting-based
-derivation.
-\end{proof}
-
-The implementation chapter exploits a simpler $\ell_1$ normalisation
-that is equivalent to $\Pi_{\Delta}$ when the candidate vector is
-non-negative, which can be enforced by clipping the EDA samples to
-$[0,1]^d$.
-
-\subsection{Convergence under elitism}
-
-A final theoretical fact justifies the use of elitism — the
-preservation of the best individual across generations — that we
-adopt in Chapter~\ref{ch:implementation}.
-
-\begin{theorem}[Asymptotic convergence of an elitist EDA]
-\label{thm:convergence}
-Let $f^{\star}=\sup_{\boldsymbol{\Theta}} f(\boldsymbol{\Theta})$ and
-let $f^{\max}_t$ be the fitness of the best individual in
-$\mathcal{P}_t$. If the algorithm preserves at least one copy of
-the best individual at every generation (elitism) and the model
-$\hat{p}_t$ assigns positive probability to every region of positive
-volume of the search space, then
-\[
-    \lim_{t\to\infty} f^{\max}_t = f^{\star}
-    \qquad \text{almost surely.}
-\]
-\end{theorem}
-
-\begin{proof}[Sketch]
-Elitism makes the sequence $\{f^{\max}_t\}$ monotone
-non-decreasing. Positive support of $\hat{p}_t$ ensures that every
-neighbourhood of an optimum is sampled with positive probability at
-every step; a Borel--Cantelli argument shows that the probability of
-never sampling an $\varepsilon$-optimal point decays to zero for any
-$\varepsilon>0$.
-\end{proof}
-
-\begin{remark}
-Theorem~\ref{thm:convergence} is asymptotic and does not specify a
-convergence rate. The rate depends on the model family, the
-selection ratio and the population size, all of which must be tuned
-empirically — as we do in Chapter~4.
-\end{remark}
+This argument is deliberately informal. It explains why the
+distribution concentrates on good regions, not that the region found
+is the global optimum — on the non-convex, degenerate landscape of
+Proposition~\ref{prop:nonsmooth} it generally need not be. What
+matters in practice is that the EDA reliably drives the cost down
+towards high-quality solutions, which is what the experiments of
+Chapter~4 confirm. The only additional requirement specific to our
+problem is that every sampled individual be turned into a valid set of
+CPTs — each row a probability distribution — which is handled at the
+decoding stage described in Chapter~\ref{ch:implementation}.
 
 \subsection{Comparison with classical Genetic Algorithms}
 
@@ -397,7 +350,7 @@ the expert rule base, the fitness function and shown
 (Proposition~\ref{prop:nonsmooth}) that the resulting optimisation
 problem is non-convex and non-smooth — hence the choice of a
 derivative-free method. Finally, we have presented the EDA family
-with the variants used in this work, the selection and constraint
-machinery, and the convergence guarantee under elitism. The next
-chapter turns these theoretical pieces into an executable
+with the variants used in this work, an intuitive account of why the
+search converges, and a comparison with classical genetic algorithms.
+The next chapter turns these theoretical pieces into an executable
 implementation.

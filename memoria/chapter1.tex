@@ -12,15 +12,15 @@
 A \emph{Decision Support System} (DSS) is an interactive
 computational tool designed to assist a decision-maker in the analysis
 of unstructured problems by combining data, formal models and
-analytical techniques~\cite{insua2005,howard2008foundations}. Within
+analytical techniques~\cite{insua2005}. Within
 this broad family, \emph{Influence Diagrams}~(IDs)
 \cite{howard2005influence,koller2009pgm,shenoy2009eolss} have become
 the de-facto standard for representing Bayesian decision
-problems~\cite{bielza2011review} and offer a particularly compact
+problems and offer a particularly compact
 graphical formalism:
 a single directed acyclic graph encodes simultaneously the
 probabilistic structure of the problem (chance nodes), the
-controllable choices of the agent (decision nodes) and her
+controllable choices of the agent (decision nodes) and their
 preferences over outcomes (utility nodes). Unlike a fully expanded
 decision tree, an ID allows the analyst to reason about the problem
 at the level of variables and to compute the optimal policy by direct
@@ -28,11 +28,11 @@ evaluation of the graph using exact algorithms such as the one of
 Shachter~\cite{shachter1986evaluating}.
 
 The expressive power of an ID rests on two distinct ingredients.
-The first is its \emph{qualitative structure} — the set of nodes and
-arcs — which captures the conditional dependencies of the domain.
+The first is its \emph{qualitative structure}, the set of nodes and
+arcs, which captures the conditional dependencies of the problem.
 The second is its \emph{quantitative parameterisation}, consisting of
-the conditional probability tables (CPTs) of all chance nodes and the
-numerical entries of the utility function. While the structure can
+the \emph{conditional probability tables} (CPTs) of all chance nodes and the
+numerical entries of the \emph{utility function}. While the structure can
 often be elicited from a domain expert in a relatively small number of
 modelling sessions, the parameterisation grows exponentially with the
 connectivity of the graph and becomes the real bottleneck of any
@@ -44,18 +44,17 @@ before the model could be deployed, and the very same effort is
 documented as the dominant cost of the project in the companion
 analysis of Bielza et al.~\cite{bielza2000issues}.
 
-To put these numbers in perspective, the SRI elicitation
-protocol — still the reference in the field — requires roughly
-\emph{thirty minutes per parameter}~\cite{bielza2010modeling},
+To put these numbers in perspective, the SRI (Stanford Research Institute) elicitation
+protocol, still the reference in the field, requires roughly \emph{thirty minutes per parameter}~\cite{bielza2010modeling},
 which makes the direct estimation of a model with thousands of
 entries impractical. The community has responded with a battery of
-techniques to reduce the parameter count — divorcing parents,
+techniques to reduce the parameter count, divorcing parents,
 sequential refinements, canonical Noisy-OR / Noisy-AND
-models — and the same authors report that on the jaundice ID itself
+models, and the same authors report that on the jaundice ID itself
 Noisy-OR achieves a \emph{77\,\% global reduction} of the
 probabilistic parameters and up to 97\,\% on individual
 distributions~\cite{bielza2010modeling}. The utility node is in
-general even harder to elicit: a single utility function with five
+general even harder to elicit: a single utility function like the one used in the neonatal-jaundice ID~\cite{gomez2007jaundice} with five
 attributes already requires of the order of 5\,400 entries and the
 corresponding pairwise-comparison protocol would demand more than
 14 million expert judgements~\cite{bielza2010modeling}. These
@@ -82,29 +81,19 @@ of specifying every numerical entry of the model?
 
 Several factors make this problem both timely and important.
 
-\paragraph{The elicitation bottleneck.} Direct elicitation techniques
-— reference lotteries, indifference judgements, pairwise comparisons —
+\paragraph*{The elicitation bottleneck.} Direct elicitation techniques (reference lotteries, indifference judgements, pairwise comparisons...)
 remain the de-facto standard for the construction of probabilistic
-decision models~\cite{bielza2010modeling}. They demand long
-interviews with scarce experts, are cognitively demanding for the
-interviewee and are well known to introduce inconsistencies that
-require subsequent revision. In domains such as clinical medicine,
-public-health planning or safety-critical engineering, the cost of
-expert time is the dominant factor preventing the wider adoption of
+decision models~\cite{bielza2010modeling}. They demand long interviews with scarce experts, are cognitively demanding for the interviewee and are well known to introduce inconsistencies that require subsequent revision. In domains such as clinical medicine,
+public-health planning or safety-critical engineering, the cost of expert time is the dominant factor preventing the wider adoption of
 ID-based decision tools.
 
-\paragraph{Scarcity of historical data.} A natural alternative to
-direct elicitation is to learn the parameters of the model from
-historical data via maximum-likelihood or expectation–maximisation
-estimators, as pioneered by Ezawa and Gupta in the context of
-IDs~\cite{ezawa1997learning}. However, the regime in which most
+\paragraph*{Scarcity of historical data.} A natural alternative to direct elicitation is to learn the parameters of the model from historical data via maximum-likelihood or expectation–maximisation estimators, as originally proposed by Ezawa and Gupta in the context of IDs~\cite{ezawa1997learning}. However, the regime in which most
 clinical and engineering problems live is precisely the opposite of
 what such statistical methods require: there are very few annotated
-historical cases, but a domain expert is usually able to verbalise a
-small number of high-level decision rules of the form
+historical cases, but a domain expert is usually able to verbalise a small number of high-level rules of the form
 ``\textit{if condition $\mathbf{x}$ holds, then take action $a$}''.
 
-\paragraph{Decisions instead of probabilities.} Eliciting rules is
+\paragraph*{Decisions instead of probabilities.} Eliciting rules is
 cognitively much closer to clinical or managerial practice than
 eliciting numerical probabilities. Practitioners reason naturally in
 terms of recommended actions under prototypical scenarios, and reach
@@ -112,12 +101,12 @@ agreement on rules far more easily than on probability tables.
 Exploiting rules as a supervisory signal therefore aligns the
 elicitation process with the way experts actually think.
 
-\paragraph{Use cases.} Concrete domains where the proposed approach
+\paragraph*{Use cases} Concrete domains where the proposed approach
 is of immediate practical interest include:
 \begin{itemize}
     \item \textbf{Clinical decision support.}
           Risk stratification, triage, treatment selection or the
-          management of chronic diseases — the neonatal-jaundice ID
+          management of chronic diseases. The neonatal-jaundice ID
           of~\cite{gomez2007jaundice} is a canonical example, and
           the demand for evidence-based decision aids in clinical
           practice is by now well documented~\cite{dowding2004evidence}.
@@ -150,16 +139,14 @@ contribution focused, the work in this thesis is restricted to:
     \item supervision signals consisting of a finite set of
           \emph{partial decision rules} produced by a domain expert.
 \end{enumerate}
-A wealth of representational extensions has been proposed in the
-ID literature — asymmetric decision problems (conditional
+A wealth of representational extensions has been proposed in the ID literature: asymmetric decision problems (conditional
 distribution trees, sequential decision diagrams, sequential
 valuation networks), continuous and hybrid IDs (Gaussian IDs,
 mixtures of truncated exponentials and polynomials), unconstrained
-IDs and multi-agent extensions (MAIDs) — and the review of Bielza,
+IDs and multi-agent extensions (MAIDs). The review of Bielza,
 G{\'o}mez and Shenoy~\cite{bielza2011review} offers a thorough
-catalogue of them. The present thesis deliberately restricts
-itself to the regular, discrete, single-value setting described
-above; the extensions are revisited only in the perspectives
+catalogue of them. Altough this thesis will deliberately restrict
+itself to the regular, discrete, single-value setting described above; the extensions are revisited only in the perspectives
 chapter.
 
 % --------------------------------------------------------------
@@ -175,29 +162,23 @@ present work within them.
 \subsection{Statistical learning from data (MLE / EM)}
 
 The classical route to parameterising any graphical model is
-maximum-likelihood estimation. When the data are fully observed the
-CPTs reduce to relative frequencies; with hidden variables or missing
-entries the Expectation–Maximisation algorithm is the standard
-choice. In the specific context of IDs, the seminal work of Ezawa
-and Gupta~\cite{ezawa1997learning} combined EM for the CPTs with a
+maximum-likelihood estimation. When the data is fully observed the CPTs reduce to relative frequencies; with hidden variables or missing
+entries the Expectation$-$Maximisation algorithm is the standard
+choice. In the specific context of IDs, the  work of Ezawa and Gupta~\cite{ezawa1997learning} combined EM for the CPTs with a
 greedy search for the causal structure, and extended the procedure to
 the utility node via regression on observed outcomes. The approach
-is implemented in essentially every graphical-models toolkit (GeNIe,
-pgmpy, bnlearn) but requires a sizeable corpus of labelled historical
-cases, which in many real applications is simply not available.
+is already implemented but requires a sizeable corpus of labelled historical cases, which in many real applications is simply not available.
 
 \subsection{Direct expert elicitation}
 
-When historical data are scarce, the established alternative is the
+When historical data is scarce, the established alternative is the
 structured elicitation of probabilities and utilities through
 techniques such as reference lotteries, indifference judgements and
 canonical models (Noisy-OR, Noisy-AND, additive utilities)
 \cite{bielza2010modeling}. The literature on multi-criteria decision
-making, including the doctoral work of Shahzad on the integration of
-Bayesian networks and MCDM~\cite{shahzad2022mcdm}, has produced a
-mature catalogue of methods to reduce the cognitive load on the
-expert. Even with these aids, however, the resulting judgements are
-known to be systematically biased: the experimental psychology of
+making, including the work of Shahzad on the integration of
+Bayesian networks and MCDM~\cite{shahzad2022mcdm}, has produced a reviewed catalog of methods to reduce the cognitive load on the
+expert. Even with these aids, however, the resulting judgements are known to be systematically biased: the experimental psychology of
 probability assessment has identified three robust distortions —
 \emph{availability}, \emph{representativeness} and
 \emph{anchoring} — that all degrade the quality of expert-supplied
@@ -227,47 +208,46 @@ the search space at every generation. Recent surveys
 \cite{larranaga2024edas} report consistent improvements over
 classical GAs in continuous, high-dimensional and constrained
 problems, and the open-source library
-\textsc{EDAspy}~\cite{soloviev2024edaspy} now provides
-production-quality implementations of UMDA, EGNA, KEDA and SPEDA, as
-well as the semiparametric variant SPEDA~\cite{soloviev2023speda}.
+\textsc{EDAspy}~\cite{soloviev2024edaspy} provides
+high quality implementations of certain EDAs such as UMDA, EGNA and KEDA~\cite{soloviev2023speda}.
 
 \subsection{Generative and LLM-based elicitation}
 
-The most recent trend exploits large language models as
-``in-silico'' experts. Prompted with the structure of the network
+The most recent trend exploits large language models as artificial experts. Prompted with the structure of the network
 and natural-language descriptions of the variables, models such as
 GPT-4o, Gemini Pro and Claude 3.5 have been shown to produce CPTs
 whose Kullback–Leibler divergence with respect to expert-elicited
 tables is comparable to the noise observed across different human
-experts~\cite{llm4bn2025}. Closely related, Pan et al.~use
+experts~\cite{nafar2025llm4bn}. Closely related, Pan et al.~use
 Variational Auto-encoders to generate plausible models of the
 unobserved agents in Interactive Dynamic IDs~\cite{pan2024vae}.
 These methods are still in their infancy but already suggest powerful
-hybrid pipelines in which a generative model produces a warm-start
+hybrid pipelines in which a generative model produces a promising initial
 configuration that is subsequently refined by a metaheuristic.
 
-\subsection{Exact optimisation and reinforcement learning}
+\subsection{Beyond exact evaluation}
 
-For completeness, two further lines must be mentioned. The
-\emph{Decision Programming} framework of Salo et
-al.~\cite{salo2022decisionprog}, refined by Hankimaa et
-al.~\cite{hankimaa2024mip}, recasts the ID as a mixed-integer linear
-program that can be solved by off-the-shelf optimisation engines.
-G{\'o}mez Castellanos and Terashima-Mar{\'\i}n~\cite{gomez2024rl} use
-deep reinforcement learning (PPO) to solve Mixed IDs by treating the
-optimal policy as the output of an actor-critic. Both lines tackle
-the dual problem to the one studied here: they fix the parameters and
-optimise the policy, whereas in this thesis the policy
-(the expert rules) is fixed and the parameters are searched.
-The recent survey of Vonk and
-Gonzalez-Soto~\cite{vonk2026graphical} gives the most up-to-date
-panorama of these complementary approaches.
+The Shachter algorithm computes the optimal policy exactly, but only
+for regular discrete IDs like the one used in this work. When the
+diagram grows too large, mixes continuous and discrete variables, or
+carries constraints that the regular formalism cannot express, exact
+evaluation is no longer feasible. Two families of methods step in
+here: \emph{Decision Programming}~\cite{salo2022decisionprog}, which
+rewrites the diagram as an integer optimisation problem and hands it
+to a standard solver, and \emph{reinforcement
+learning}~\cite{gomez2024rl}, which approximates the optimal policy by
+trial and error on a simulator of the diagram. Both pursue the same
+goal — given the parameters, find the best decisions — which is the
+mirror image of the problem studied here, where the decisions (the
+expert rules) are given and the parameters are what we look for.
+These approaches fall outside the scope of this thesis, but they are
+closely related and are worth keeping in mind as the natural
+counterpart to the parameter-recovery problem we address.
+
 
 \subsection{The inverse problem: rules from CPTs}
 
-A complementary line of work, also rooted at UPM, attacks the
-\emph{inverse} of the problem studied in this thesis. Fern{\'a}ndez
-del Pozo, Bielza and Lucas~\cite{fdezdelpozo2010cluster} propose the
+A complementary line of work, also originated at UPM, approaches the \emph{inverse} of the problem studied in this thesis. Fern{\'a}ndez del Pozo, Bielza and Lucas~\cite{fdezdelpozo2010cluster} propose the
 \textsc{Cluster-KBM2L} methodology, which starts from a fully
 specified CPT (more than 8\,000 entries in the case of their
 non-Hodgkin lymphoma ID) and extracts \emph{symbolic prognostic
@@ -299,8 +279,7 @@ The overall objective of this thesis is to develop and validate a
 proof-of-concept system that estimates the quantitative parameters of
 a regular Influence Diagram from a partial expert rule base, using
 Estimation of Distribution Algorithms as the search engine. To
-achieve this overarching goal we set the following specific
-objectives:
+achieve this global goal we set the following specific objectives:
 \begin{enumerate}
     \item Formalise the parameter-recovery problem as a constrained
           black-box optimisation over the joint space of CPTs and
@@ -310,16 +289,13 @@ objectives:
           every decoded CPT.
     \item Implement the resulting system on top of the
           \textsc{EDAspy} library~\cite{soloviev2024edaspy} and the
-          \textsc{SMILE} inference engine~\cite{genie}, using the
-          neonatal-jaundice ID of~\cite{gomez2007jaundice} as the
-          benchmark.
+          \textsc{SMILE} inference engine~\cite{genie}.
+          % , using the neonatal-jaundice ID of~\cite{gomez2007jaundice} as the benchmark.
     \item Empirically evaluate the impact of the main
-          hyperparameters (population size, selection ratio, dead
-          iterations) on the quality of the recovered parameters and
+          hyperparameters (population size, selection ratio, dead iterations, convergence criteria...) as well as different loss functions on the quality of the recovered parameters and
           on the run-time of the algorithm.
-    \item Discuss the limits of the proposed approach and outline a
-          set of natural extensions (LLM-informed initialisation,
-          canonical-model parameterisation, SPEDA, parallel EDAs).
+    \item Discuss the limits of the proposed approach and outline a set of natural extensions (LLM-informed initialisation,
+          canonical-model parameterisation, SPEDA, parallel EDAs...).
 \end{enumerate}
 
 % --------------------------------------------------------------
