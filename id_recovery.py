@@ -13,6 +13,7 @@ import pysmile
 import numpy as np
 import random
 import csv
+import time
 from scipy.special import expit
 from EDAspy.optimization import UMDAc, EGNA, EMNA, UnivariateKEDA
 
@@ -148,6 +149,10 @@ class IDRecovery:
         self.eval_count = 0
         self.current_gen = 1
         self.evals_this_gen = 0
+        # Cronómetro por generación: incluye el muestreo del EDA + todas las
+        # evaluaciones de fitness de esa población. Se cierra en el push a
+        # history y se reinicia al arrancar la siguiente generación.
+        self.gen_start_time = time.perf_counter()
 
         self.gen_fitness = []
         self.gen_errors_chance = []
@@ -259,6 +264,14 @@ class IDRecovery:
                     raw_r = raw.reshape(s['shape']) / self.chance_temperature
                     res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
                     probs = res / res.sum(axis=-1, keepdims=True)
+                    # epsilon-floor: evita probs exactamente 0 o 1.
+                    # Estabiliza la evaluación de Shachter (ningún log(0))
+                    # y permite recuperarse de un commit prematuro a una
+                    # CPT degenerada. Tras flooring renormalizamos para
+                    # mantener la fila en el símplex.
+                    eps = 1e-3
+                    probs = np.maximum(probs, eps)
+                    probs = probs / probs.sum(axis=-1, keepdims=True)
                     val = probs.flatten()
 
                 # Entropía normalizada acumulada (suma sobre filas del simplex).
@@ -372,6 +385,7 @@ class IDRecovery:
             
             errors_chance_arr = np.array(self.gen_errors_chance)
             errors_utility_arr = np.array(self.gen_errors_utility)
+            gen_elapsed = time.perf_counter() - self.gen_start_time
             self.history.append({
                 'gen': self.current_gen,
                 'errors_chance': errors_chance_arr,
@@ -381,6 +395,7 @@ class IDRecovery:
                 'accuracies': np.array(self.gen_accuracies),
                 'entropy_norm': np.array(self.gen_entropy_norm),
                 'util_dev': np.array(self.gen_util_dev),
+                'gen_time': gen_elapsed,
             })
             
             sorted_fitness = np.sort(self.gen_fitness)
@@ -427,6 +442,7 @@ class IDRecovery:
             
             self.current_gen += 1
             self.evals_this_gen = 0
+            self.gen_start_time = time.perf_counter()
             self.gen_fitness = []
             self.gen_errors_chance = []
             self.gen_errors_utility = []

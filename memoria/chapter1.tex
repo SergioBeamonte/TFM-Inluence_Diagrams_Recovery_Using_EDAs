@@ -101,7 +101,7 @@ agreement on rules far more easily than on probability tables.
 Exploiting rules as a supervisory signal therefore aligns the
 elicitation process with the way experts actually think.
 
-\paragraph*{Use cases} Concrete domains where the proposed approach
+\paragraph*{Use cases.} Concrete domains where the proposed approach
 is of immediate practical interest include:
 \begin{itemize}
     \item \textbf{Clinical decision support.}
@@ -145,8 +145,9 @@ valuation networks), continuous and hybrid IDs (Gaussian IDs,
 mixtures of truncated exponentials and polynomials), unconstrained
 IDs and multi-agent extensions (MAIDs). The review of Bielza,
 G{\'o}mez and Shenoy~\cite{bielza2011review} offers a thorough
-catalogue of them. Altough this thesis will deliberately restrict
-itself to the regular, discrete, single-value setting described above; the extensions are revisited only in the perspectives
+catalogue of them. Although this thesis deliberately restricts
+itself to the regular, discrete, single-value setting described
+above, the extensions are revisited only in the perspectives
 chapter.
 
 % --------------------------------------------------------------
@@ -164,7 +165,7 @@ present work within them.
 The classical route to parameterising any graphical model is
 maximum-likelihood estimation. When the data is fully observed the CPTs reduce to relative frequencies; with hidden variables or missing
 entries the Expectation$-$Maximisation algorithm is the standard
-choice. In the specific context of IDs, the  work of Ezawa and Gupta~\cite{ezawa1997learning} combined EM for the CPTs with a
+choice. In the specific context of IDs, the work of Ezawa and Gupta~\cite{ezawa1997learning} combined EM for the CPTs with a
 greedy search for the causal structure, and extended the procedure to
 the utility node via regression on observed outcomes. The approach
 is already implemented but requires a sizeable corpus of labelled historical cases, which in many real applications is simply not available.
@@ -177,7 +178,7 @@ techniques such as reference lotteries, indifference judgements and
 canonical models (Noisy-OR, Noisy-AND, additive utilities)
 \cite{bielza2010modeling}. The literature on multi-criteria decision
 making, including the work of Shahzad on the integration of
-Bayesian networks and MCDM~\cite{shahzad2022mcdm}, has produced a reviewed catalog of methods to reduce the cognitive load on the
+Bayesian networks and MCDM~\cite{shahzad2022mcdm}, has produced a comprehensive catalogue of methods to reduce the cognitive load on the
 expert. Even with these aids, however, the resulting judgements are known to be systematically biased: the experimental psychology of
 probability assessment has identified three robust distortions —
 \emph{availability}, \emph{representativeness} and
@@ -209,7 +210,7 @@ the search space at every generation. Recent surveys
 classical GAs in continuous, high-dimensional and constrained
 problems, and the open-source library
 \textsc{EDAspy}~\cite{soloviev2024edaspy} provides
-high quality implementations of certain EDAs such as UMDA, EGNA and KEDA~\cite{soloviev2023speda}.
+high-quality implementations of several EDAs, including UMDA, EGNA and KEDA.
 
 \subsection{Generative and LLM-based elicitation}
 

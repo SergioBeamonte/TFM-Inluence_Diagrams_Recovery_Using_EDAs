@@ -54,8 +54,59 @@ $\mathcal{D} = (\mathbf{C}, \mathbf{D}, V, \mathcal{E})$ where:
 \end{definition}
 
 For the ID to admit a well-defined evaluation procedure the graph
-must be \emph{regular}. It is, a DAG where the value node has no successors and the decisions can be linearly ordered by a directed path that traverses all of them. Throughout this work all IDs are
+must be \emph{regular}. That is, a DAG where the value node has no successors and the decisions can be linearly ordered by a directed path that traverses all of them. Throughout this work all IDs are
 assumed to be regular.
+
+\subsubsection*{A canonical example: the oil wildcatter}
+\label{sec:oil-wildcatter}
+
+To make the formalism concrete we adopt the canonical \emph{oil
+wildcatter} problem of Howard and Matheson~\cite{howard2005influence},
+also reproduced in the review of Bielza, G{\'o}mez and
+Shenoy~\cite{bielza2011review}. A prospector must decide whether to
+drill at a given site. Before drilling, she may pay for a seismic
+test whose result is informative about the underlying amount of oil.
+The graphical structure is shown in Figure~\ref{fig:oilid}.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        >=Stealth, node distance=14mm and 18mm, font=\small,
+        chance/.style={draw, ellipse, minimum width=18mm, minimum height=8mm},
+        decision/.style={draw, rectangle, minimum width=18mm, minimum height=8mm},
+        utility/.style={draw, diamond, aspect=2, minimum width=14mm,
+                        inner sep=2pt},
+        arr/.style={->, thick},
+        infoarr/.style={->, thick, dashed}
+    ]
+        \node[decision] (T)              {Test?};
+        \node[chance,   right=of T]  (S) {Seismic};
+        \node[decision, right=of S]  (D) {Drill?};
+        \node[chance,   above=of S]  (O) {Oil};
+        \node[utility,  below=10mm of S] (V) {Profit};
+
+        \draw[arr] (T) -- (S);
+        \draw[arr] (O) -- (S);
+        \draw[infoarr] (T) -- (D);
+        \draw[infoarr] (S) -- (D);
+        \draw[arr] (T) -- (V);
+        \draw[arr] (D) -- (V);
+        \draw[arr] (O.east) to[bend left=20] (V.east);
+    \end{tikzpicture}
+    \caption{Influence diagram for the oil-wildcatter problem.
+    Ellipses are chance nodes, rectangles are decision nodes, the
+    diamond is the utility node. Solid arrows denote probabilistic
+    or functional dependencies, dashed arrows denote informational
+    precedence (what is known when each decision is taken).}
+    \label{fig:oilid}
+\end{figure}
+
+The qualitative structure is read off the picture: the seismic test
+result depends on whether the test was performed and on the true
+amount of oil; the drilling decision is taken after observing both;
+the profit depends on the drilling action, on the true amount of oil
+(success or dry well) and on whether the seismic test was paid for.
+The next subsection puts numbers to this skeleton.
 
 \subsection{Quantitative parameterisation}
 
@@ -126,6 +177,111 @@ $\boldsymbol{\delta}^{\!*}(\boldsymbol{\Theta})$ in polynomial time
 for any fixed $\boldsymbol{\Theta}$ by successively reversing arcs
 and eliminating nodes from the graph.
 
+\subsubsection*{What the parameters and their evaluation look like}
+\label{sec:oil-tables}
+
+To make the three pieces of $\boldsymbol{\Theta}$ concrete we add
+illustrative numbers to the oil-wildcatter problem of
+Figure~\ref{fig:oilid}. The chance node \textsf{Oil} takes three
+states (\textsc{dry}, \textsc{wet}, \textsc{soaking}); the chance
+node \textsf{Seismic} takes three states (\textsc{none},
+\textsc{open}, \textsc{closed}) and depends on the true \textsf{Oil}
+amount and on whether the test was performed. The CPT of
+\textsf{Seismic} conditioned on $\mathsf{Test}=\textsc{yes}$ is shown
+in Table~\ref{tab:oil-cpt}; we omit the trivial column
+$\mathsf{Test}=\textsc{no}$, in which the test returns a fixed
+\textsc{none}.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{l|ccc}
+\hline
+$P(\mathsf{Seismic} \mid \mathsf{Oil}, \mathsf{Test}=\textsc{yes})$
+              & \textsc{none} & \textsc{open} & \textsc{closed} \\
+\hline
+$\mathsf{Oil}=\textsc{dry}$     & 0.60 & 0.30 & 0.10 \\
+$\mathsf{Oil}=\textsc{wet}$     & 0.30 & 0.40 & 0.30 \\
+$\mathsf{Oil}=\textsc{soaking}$ & 0.10 & 0.30 & 0.60 \\
+\hline
+\end{tabular}
+\caption{Conditional probability table of the chance node
+\textsf{Seismic} given its parents. Each row is a probability
+distribution over the three possible test outcomes.}
+\label{tab:oil-cpt}
+\end{table}
+
+The utility node \textsf{Profit} depends on \textsf{Drill},
+\textsf{Oil} and \textsf{Test}; Table~\ref{tab:oil-util} lists its
+values on an arbitrary monetary scale (in our convention, the
+utility lies in $[0,10]$).
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{lcc|cc}
+\hline
+& & & $\mathsf{Test}=\textsc{no}$ & $\mathsf{Test}=\textsc{yes}$\\
+\hline
+$\mathsf{Drill}=\textsc{no}$  & & $\mathsf{Oil}=$ any       & 5.0 & 4.0 \\
+\hline
+$\mathsf{Drill}=\textsc{yes}$ & & $\mathsf{Oil}=\textsc{dry}$     & 0.0 & 0.0 \\
+                              & & $\mathsf{Oil}=\textsc{wet}$     & 6.0 & 5.0 \\
+                              & & $\mathsf{Oil}=\textsc{soaking}$ & 10.0& 9.0 \\
+\hline
+\end{tabular}
+\caption{Utility table of \textsf{Profit} on the $[0,10]$ scale.
+Drilling a dry well loses money; drilling a soaking well is the most
+profitable outcome; the test reduces the utility by a constant cost
+(here, one unit).}
+\label{tab:oil-util}
+\end{table}
+
+Given these two ingredients and a prior on \textsf{Oil}
+(say $P(\textsc{dry}) = 0.5,\, P(\textsc{wet}) = 0.3,\,
+P(\textsc{soaking}) = 0.2$), running the Shachter algorithm produces
+a third table: the expected utility of each action of $\mathsf{Drill}$
+\emph{conditioned on the information available at that point} (the
+seismic result, if a test was paid for). Table~\ref{tab:oil-eu} shows
+this evaluation output. The action of larger expected utility in each
+row is the optimal one for that information state, which is what
+makes the table the carrier of the \emph{decision rules} of the model.
+
+\begin{table}[H]
+\centering\small
+\begin{tabular}{l|cc}
+\hline
+$\mathsf{EU}\bigl(\mathsf{Drill}\mid \mathsf{Test}, \mathsf{Seismic}\bigr)$
+                                 & $\mathsf{Drill}=\textsc{no}$ & $\mathsf{Drill}=\textsc{yes}$\\
+\hline
+$\mathsf{Test}=\textsc{no}$      & 5.00 & \textbf{4.40}\\[2pt]
+\hline
+$\mathsf{Test}=\textsc{yes},\;\mathsf{Seismic}=\textsc{none}$
+                                 & 4.00 & \textbf{2.36}\\
+$\mathsf{Test}=\textsc{yes},\;\mathsf{Seismic}=\textsc{open}$
+                                 & 4.00 & \textbf{4.94}\\
+$\mathsf{Test}=\textsc{yes},\;\mathsf{Seismic}=\textsc{closed}$
+                                 & 4.00 & \textbf{6.65}\\
+\hline
+\end{tabular}
+\caption{Expected utilities produced by the Shachter evaluation of
+the oil-wildcatter ID under the parameters of
+Tables~\ref{tab:oil-cpt}--\ref{tab:oil-util}.
+The values in bold are the optimal action of $\mathsf{Drill}$ for
+that information state. The whole rightmost column is what a domain
+expert would summarise as ``decision rules'': drill if and only if
+the seismic test is open or closed, otherwise abstain.}
+\label{tab:oil-eu}
+\end{table}
+
+The point of this thesis is precisely the \emph{inverse} of this
+procedure. The expert does \emph{not} provide
+Tables~\ref{tab:oil-cpt} and~\ref{tab:oil-util}: instead, she only
+supplies a few entries of Table~\ref{tab:oil-eu} as decision rules
+(``drill if the seismic is closed'', ``don't drill if the seismic is
+none''). The optimiser must recover a pair of tables
+$(\theta_{C_i}, u)$ \emph{compatible} with those rules, in the sense
+that re-running Shachter on the recovered parameters reproduces the
+expert's choices.
+
 % ==============================================================
 \section{The Knowledge-Acquisition Problem}
 % ==============================================================
@@ -163,7 +319,7 @@ vector with the expert by a simple accuracy:
 
 \begin{definition}[Fitness function]
 \label{def:fitness}
-Defined the vector of expected utilities of decision $D_{i_l}$ under
+Define the vector of expected utilities of decision $D_{i_l}$ under
 $\boldsymbol{\Theta}$ and evidence $\mathbf{x}^{(l)}$ as
 \[
    \mathbf{u}^{(l)}(\boldsymbol{\Theta}) =
@@ -197,7 +353,7 @@ softmax distribution over actions.
 The parameter-recovery problem is then the constrained search
 \[
    \boldsymbol{\Theta}^{\star} =
-   \arg\max_{\boldsymbol{\Theta}} f(\boldsymbol{\Theta}),
+   \arg\min_{\boldsymbol{\Theta}} \mathcal{L}(\boldsymbol{\Theta}),
 \]
 with $\boldsymbol{\Theta}$ ranging over the product of all valid
 CPTs and utility tables. The next proposition justifies the use of
@@ -230,7 +386,7 @@ non-convex.
 \textbf{\emph{Regularity.}} Within any region of $\boldsymbol{\Theta}$ where the
 optimal action of every decision is fixed, $\mathbf{u}^{(l)}$ is a
 rational function of the parameters and is therefore smooth. At the
-boundaries between regions the maximising action switches: the value of the optimal policy has a non$-$differentiable there. Composing with the per-rule loss,
+boundaries between regions the maximising action switches: the value of the optimal policy is non-differentiable there. Composing with the per-rule loss,
 the $0$--$1$ loss jumps discontinuously at those boundaries, the
 \textsc{regret} and \textsc{margin} losses stay continuous but
 non-differentiable, and the \textsc{softmax} and \textsc{entropy} losses
@@ -241,7 +397,7 @@ are smooth away from them.
 (except for the discontinuous \textsc{binary} loss) and could in
 principle be obtained by finite differences. We nevertheless adopt a
 population-based, derivative-free strategy for three reasons: the
-landscape is strongly non-convex and highly degenerated (many parameter vectors reproduce the same rules) so local gradient information does not
+landscape is strongly non-convex and highly degenerate (many parameter vectors reproduce the same rules) so local gradient information does not
 lead to the global optimum; the evaluation engine returns only utility
 values, so each numerical gradient would cost $O(d)$ additional
 evaluations in a space of dimension $d=|\boldsymbol{\Theta}|$; and for the
@@ -270,8 +426,7 @@ generic scheme.
 \State $t \leftarrow 0$
 \Repeat
     \State Evaluate $f$ on every $\boldsymbol{\Theta}\in\mathcal{P}_t$.
-    \State Select the top-$S$ individuals 
-           $\rightarrow \mathcal{P}_t^{\text{sel}}$.
+    \State $\mathcal{P}_t^{\text{sel}} \leftarrow$ top-$S$ individuals of $\mathcal{P}_t$.
     \State Estimate a probabilistic model $\hat{p}_t$ based on
            $\mathcal{P}_t^{\text{sel}}$.
     \State Sample $N$ new individuals from $\hat{p}_t$ to form
@@ -286,36 +441,120 @@ The defining choice of an EDA is the family used for $\hat{p}_t$:
 richer families capture more structure of the search space at the
 expense of a higher estimation cost.
 
-\subsection{Variants relevant for this work}
+\subsection{Variants in this work}
 
 Because the parameter vector of an ID lives in a continuous space
 (every CPT entry and every utility value is a real number), only
-continuous EDAs are relevant. The three variants considered in this
-thesis are:
+continuous EDAs are relevant. The four variants used in this work,
+all available through \textsc{EDAspy}~\cite{soloviev2024edaspy}, span the spectrum from a fully factorised parametric model to a
+full-covariance multivariate Gaussian, with a structured intermediate
+and a non-parametric alternative on the univariate side. We denote an individual by $\boldsymbol{\phi}=(\phi_1,\ldots,\phi_d)$
+and the size of the selected elite by
+$S=|\mathcal{P}_t^{\text{sel}}|$.
 
-\paragraph*{UMDA\textsubscript{c}:} In the continuous Univariate
-Marginal Distribution Algorithm~\cite{larranaga2002eda} each dimension
-is modelled by an independent Gaussian:
+\paragraph*{UMDA\textsubscript{c} --- Univariate Marginal Distribution
+Algorithm.} Each dimension is modelled by an independent
+Gaussian~\cite{larranaga2002eda}:
 \[
-    \hat{p}_t^{j}(\phi_j) = \mathcal{N}\bigl(\phi_j;\,
+    \hat{p}_t(\boldsymbol{\phi})
+    = \prod_{j=1}^{d}
+    \mathcal{N}\!\bigl(\phi_j;\,
     \hat{\mu}_t^{j},\,(\hat{\sigma}_t^{j})^{2}\bigr),
 \]
-with mean and variance estimated by the sample moments of the
-selected individuals. UMDA\textsubscript{c} is the cheapest and most
-scalable variant but cannot capture inter-variable dependencies.
+whose mean and variance are the sample moments of the selected individuals,
+\[
+    \hat{\mu}_t^{j}
+    = \frac{1}{S}\!\sum_{\boldsymbol{\phi}\in\mathcal{P}_t^{\text{sel}}}\!\phi_j,
+    \qquad
+    (\hat{\sigma}_t^{j})^{2}
+    = \frac{1}{S}\!\sum_{\boldsymbol{\phi}\in\mathcal{P}_t^{\text{sel}}}\!
+    (\phi_j - \hat{\mu}_t^{j})^{2}.
+\]
+The model is the cheapest of the family ($O(d\cdot S)$ per generation,
+both for fitting and for sampling) but its independence assumption
+means it cannot capture any dependency between the parameters of the
+diagram: the search effectively assumes that good values for one CPT
+entry give no information about good values for another.
+\paragraph*{EMNA --- Estimation of Multivariate Normal Algorithm.}
+The opposite end of the parametric spectrum: the whole population is
+modelled by a single multivariate Gaussian~\cite{larranaga2002eda},
+\[
+    \hat{p}_t(\boldsymbol{\phi}) =
+    \mathcal{N}\!\bigl(\boldsymbol{\phi};\,
+    \hat{\boldsymbol{\mu}}_t,\,
+    \hat{\boldsymbol{\Sigma}}_t\bigr),
+\]
+with sample mean and \emph{full covariance},
+\[
+    \hat{\boldsymbol{\mu}}_t
+    = \frac{1}{S}\!\sum_{\boldsymbol{\phi}\in\mathcal{P}_t^{\text{sel}}}\!\boldsymbol{\phi},
+    \qquad
+    \hat{\boldsymbol{\Sigma}}_t
+    = \frac{1}{S}\!\sum_{\boldsymbol{\phi}\in\mathcal{P}_t^{\text{sel}}}\!
+    (\boldsymbol{\phi} - \hat{\boldsymbol{\mu}}_t)
+    (\boldsymbol{\phi} - \hat{\boldsymbol{\mu}}_t)^{\!\top}.
+\]
+EMNA captures every pairwise linear dependency between parameters and
+is therefore strictly more expressive than UMDA. The price is
+double: the cost grows to $O(d^{2}\cdot S)$ for the covariance estimate,
+plus a $O(d^{3})$ Cholesky factorisation of $\hat{\Sigma}_t$ used to sample (and the
+truncated population must be large enough, $S>d$
+to keep $\hat{\boldsymbol{\Sigma}}_t$
+non-singular)~\cite{larranaga2002eda}.
 
-\paragraph*{EGNA:} The Estimation of Gaussian Networks
-Algorithm~\cite{larranaga2002eda} fits a Gaussian Bayesian network
-to $\mathcal{P}_t^{\text{sel}}$ and samples from it. It captures
-pairwise (and higher-order) linear dependencies between the
-parameters of the model but pays a cost of $O(d^2 N)$ per generation
-for a $d$-dimensional problem with $N$ individuals.
+\paragraph*{EGNA --- Estimation of Gaussian Networks Algorithm.}
+A middle ground between UMDA and EMNA: a multivariate Gaussian whose
+factorisation is governed by a Bayesian network $\mathcal{G}$
+\emph{learnt from the elite at every
+generation}~\cite{larranaga2002eda}. Each variable conditions only
+on its parents in $\mathcal{G}$,
+\[
+    \hat{p}_t(\boldsymbol{\phi}) = \prod_{j=1}^{d}
+    \mathcal{N}\!\Bigl(\phi_j;\;
+    \beta_{j,0} + \!\!\!\!\sum_{k\,\in\,\mathrm{pa}_{\mathcal{G}}(j)}\!\!\!\!
+    \beta_{j,k}\,\phi_k,\;
+    \sigma_j^{2}\Bigr),
+\]
+i.e.\ a linear regression of $\phi_j$ on its graph parents with
+Gaussian residuals. The structure $\mathcal{G}$ is chosen with a
+score (typically BIC) and a greedy search over
+DAGs~\cite{larranaga2002eda}. EGNA recovers UMDA when $\mathcal{G}$
+has no edges and approaches EMNA when $\mathcal{G}$ becomes a
+complete DAG; in practice the learnt graph is sparse, which keeps
+the cost reduced and makes the model robust if 
+$S$ is not large enough for EMNA to estimate a full covariance
+reliably.
 
-\paragraph*{KEDA and SPEDA.} Recent variants replace the Gaussian
-assumption by kernel density estimators (KEDA) or mix Gaussian and
-non-parametric nodes (SPEDA)~\cite{soloviev2023speda}. They are of
-interest for multi-modal problems and are listed in the perspectives
-chapter.
+\paragraph*{KEDA (Univariate) --- Kernel-density Estimation of
+Distribution Algorithm.} A non-parametric alternative on the
+univariate side: each marginal is fitted with a kernel density
+estimator from the elite~\cite{soloviev2024edaspy},
+\[
+    \hat{p}_t(\boldsymbol{\phi}) = \prod_{j=1}^{d}
+    \hat{p}_t^{\,j}(\phi_j),
+    \qquad
+    \hat{p}_t^{\,j}(\phi_j)
+    = \frac{1}{S\,h_j}\!\sum_{\boldsymbol{\phi}^{(s)}\in\mathcal{P}_t^{\text{sel}}}\!\!
+    K\!\Bigl(\frac{\phi_j - \phi_j^{(s)}}{h_j}\Bigr),
+\]
+where $K$ is a kernel (typically Gaussian) and $h_j$ is a bandwidth
+chosen, for instance, by Silverman's rule. Like UMDA it ignores
+cross-parameter dependencies, but it drops the Gaussian assumption
+per dimension and can therefore fit skewed or multi-modal marginals
+(a setting in which a single Gaussian would smear over distinct
+modes). Its cost is again $O(d\cdot S)$, with the bandwidth as an
+additional implicit hyperparameter that trades smoothness against
+detail.
+
+\medskip
+
+Together the four variants span the spectrum from \emph{fully
+factored} (UMDA\textsubscript{c}, KEDA) to \emph{fully joint} (EMNA),
+with EGNA as a structured intermediate, and from \emph{parametric}
+(UMDA\textsubscript{c}, EMNA, EGNA) to \emph{non-parametric} (KEDA)
+on the per-dimension side. Which combination suits the
+parameter-recovery problem of this work is far from obvious a
+priori.
 
 \subsection{Why the algorithm converges}
 
