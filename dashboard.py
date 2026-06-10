@@ -121,7 +121,55 @@ if not model_dict:
     st.error("No se encontraron archivos `grid_search_results_MODELO.csv` en ningún subdirectorio.")
     st.stop()
 
-df_results_all, df_curves_all = load_all(tuple(sorted(model_dict.items())))
+# ─── SELECCIÓN DE CSVs ────────────────────────────────────────────────────────
+# Evita cargar todos los CSVs al abrir: el usuario elige cuáles antes de cargar.
+
+_available_keys = sorted(model_dict.keys())
+
+if "loaded_models" not in st.session_state:
+    st.session_state.loaded_models = []
+
+# Limpia selecciones obsoletas (CSVs que ya no existen).
+st.session_state.loaded_models = [
+    k for k in st.session_state.loaded_models if k in model_dict
+]
+
+with st.sidebar:
+    st.header("📂 Datos a Cargar")
+    st.caption(f"{len(_available_keys)} CSVs detectados. Elige cuáles cargar.")
+
+    _default_sel = st.session_state.loaded_models or []
+    _picker = st.multiselect(
+        "CSVs disponibles",
+        _available_keys,
+        default=_default_sel,
+        key="csv_picker",
+    )
+    _c1, _c2 = st.columns(2)
+    _load_btn = _c1.button("📥 Cargar", type="primary", width='stretch')
+    _all_btn  = _c2.button("Todos",    width='stretch')
+
+    if _load_btn:
+        st.session_state.loaded_models = list(_picker)
+        st.rerun()
+    if _all_btn:
+        st.session_state.loaded_models = list(_available_keys)
+        st.rerun()
+
+if not st.session_state.loaded_models:
+    st.info(
+        f"📂 **{len(_available_keys)} CSVs detectados.** "
+        "Selecciona en la barra lateral los que quieras cargar y pulsa **Cargar** "
+        "(o **Todos** para cargarlos todos)."
+    )
+    with st.expander("Ver lista de CSVs disponibles", expanded=True):
+        for _k in _available_keys:
+            _res, _cur = model_dict[_k]
+            st.write(f"- **{_k}** — `{_res}`" + ("" if _cur else "  _(sin curvas)_"))
+    st.stop()
+
+_selected_dict = {k: model_dict[k] for k in st.session_state.loaded_models}
+df_results_all, df_curves_all = load_all(tuple(sorted(_selected_dict.items())))
 
 if df_results_all.empty and df_curves_all.empty:
     models_found = ", ".join(sorted(model_dict.keys()))
