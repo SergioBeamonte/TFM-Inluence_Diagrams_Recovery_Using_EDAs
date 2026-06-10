@@ -66,7 +66,7 @@ MODES = ['utility_only']
 SAMPLING_MODES = ['non_symmetric']
 
 # --- Repeticiones ---
-N_REPETITIONS = 10
+N_REPETITIONS = 5
 BASE_SEED = 42
 
 # --- Archivos de salida ---
