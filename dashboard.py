@@ -31,6 +31,15 @@ def discover_models():
             os.path.normpath(f),
             os.path.normpath(curves) if os.path.exists(curves) else None,
         )
+    # CSVs del estudio min/max utilidad: formato crudo (1 fila/rep), se agregan
+    # al vuelo al esquema de grid_search_results (ver _load_minmax).
+    for f in glob.glob("**/explore_minmax_ut.csv", recursive=True):
+        parts = f.replace("\\", "/").split("/")
+        if any(p.startswith(".") for p in parts):
+            continue
+        subdir = os.path.basename(os.path.dirname(f))
+        key    = f"{subdir} · minmax_ut"
+        found[key] = (os.path.normpath(f), None)
     return found
 
 
@@ -84,6 +93,9 @@ def _normalize_results(df: pd.DataFrame) -> pd.DataFrame:
     # resto de CSVs queda como NaN y se ignora en los filtros.
     if 'size_gen' not in df.columns:
         df['size_gen'] = pd.NA
+    # min_max_ut solo lo trae el estudio explore_minmax_ut; en el resto, NaN.
+    if 'min_max_ut' not in df.columns:
+        df['min_max_ut'] = pd.NA
     return df
 
 
@@ -99,7 +111,61 @@ def _fill_new_param_defaults(df: pd.DataFrame) -> pd.DataFrame:
         df['utility_temperature'] = 1.0
     if 'size_gen' not in df.columns:
         df['size_gen'] = pd.NA
+    if 'min_max_ut' not in df.columns:
+        df['min_max_ut'] = pd.NA
     return df
+
+
+# total_rules por red (no viene en el CSV crudo de min/max); ver explore_minmax_ut.py.
+_MINMAX_TOTAL_RULES = {'bypass2': 20, 'nhlv1': 67}
+
+
+def _load_minmax(path: str) -> pd.DataFrame:
+    """Agrega un CSV crudo de explore_minmax_ut (1 fila por repetición) al esquema
+    de grid_search_results, añadiendo `min_max_ut` como característica extra.
+
+    Las dimensiones fijas del estudio (fitness binary, stop top50, muestreo no
+    simétrico, T=1, 10% de reglas) se rellenan con sus valores de diseño para que
+    encajen con los filtros del dashboard (ver COMMON en explore_minmax_ut.py)."""
+    raw = pd.read_csv(path)
+    if raw.empty:
+        return pd.DataFrame()
+    cfg = ['net', 'optimizer', 'min_max_ut', 'size_gen', 'n_decision_rules', 'mode']
+    g = raw.groupby(cfg, dropna=False)
+    out = g.agg(
+        accuracy_mean=('best_accuracy', 'mean'),
+        accuracy_std=('best_accuracy', 'std'),
+        accuracy_min=('best_accuracy', 'min'),
+        accuracy_max=('best_accuracy', 'max'),
+        mse_chance_mean=('mse_chance', 'mean'),
+        mse_chance_std=('mse_chance', 'std'),
+        mse_utility_mean=('mse_utility', 'mean'),
+        mse_utility_std=('mse_utility', 'std'),
+        stop_gen_mean=('stop_generation', 'mean'),
+        stop_gen_std=('stop_generation', 'std'),
+        stop_gen_min=('stop_generation', 'min'),
+        stop_gen_max=('stop_generation', 'max'),
+        best_fitness_mean=('best_fitness', 'mean'),
+        best_fitness_std=('best_fitness', 'std'),
+    ).reset_index()
+    # Tiempos de CPU (solo en algunos CSVs): cpu_per_gen → gen_time, cpu_total → wall_time.
+    if 'cpu_per_gen' in raw.columns:
+        cpu = g.agg(
+            gen_time_mean=('cpu_per_gen', 'mean'),
+            gen_time_std=('cpu_per_gen', 'std'),
+            wall_time_mean=('cpu_total', 'mean'),
+            wall_time_std=('cpu_total', 'std'),
+        ).reset_index()
+        out = out.merge(cpu, on=cfg)
+    out['fitness_type']        = 'binary'
+    out['stop_mode']           = 'top50'
+    out['sampling_mode']       = 'non_symmetric'
+    out['chance_temperature']  = 1.0
+    out['utility_temperature'] = 1.0
+    out['n_decision_rules_pct'] = 10
+    out['total_rules'] = out['net'].map(_MINMAX_TOTAL_RULES)
+    out['model'] = out['net'] + ' · ' + out['optimizer'].astype(str).str.upper() + ' · mmu'
+    return out
 
 
 @st.cache_data
@@ -107,10 +173,15 @@ def load_all(model_dict_frozen):
     res_list, cur_list = [], []
     for model, (results_path, curves_path) in model_dict_frozen:
         if results_path and os.path.exists(results_path):
-            df = pd.read_csv(results_path)
-            if not df.empty:
-                df.insert(0, "model", model)
-                res_list.append(_normalize_results(df))
+            if os.path.basename(results_path).startswith("explore_minmax_ut"):
+                df = _load_minmax(results_path)
+                if not df.empty:
+                    res_list.append(_normalize_results(df))
+            else:
+                df = pd.read_csv(results_path)
+                if not df.empty:
+                    df.insert(0, "model", model)
+                    res_list.append(_normalize_results(df))
         if curves_path and os.path.exists(curves_path):
             df = pd.read_csv(curves_path)
             if not df.empty:
@@ -244,6 +315,14 @@ _HAS_SIZE_GEN = (
 )
 if _HAS_SIZE_GEN:
     _CATEGORICAL_COLS.append("size_gen")
+# min_max_ut solo aparece si se carga el estudio explore_minmax_ut.
+_HAS_MINMAX = (
+    not df_results_all.empty
+    and "min_max_ut" in df_results_all.columns
+    and df_results_all["min_max_ut"].notna().any()
+)
+if _HAS_MINMAX:
+    _CATEGORICAL_COLS.append("min_max_ut")
 
 _NUMERIC_COLS = (
     [c for c in df_results_all.columns
@@ -281,6 +360,10 @@ with st.sidebar:
         sorted(int(v) for v in ref["size_gen"].dropna().unique())
         if "size_gen" in ref.columns else []
     )
+    all_mmu     = (
+        sorted(bool(v) for v in ref["min_max_ut"].dropna().unique())
+        if "min_max_ut" in ref.columns and ref["min_max_ut"].notna().any() else []
+    )
 
     sel_models  = st.multiselect("Modelos",              all_models,  default=all_models)
     sel_mode    = st.multiselect("Modo (both/util/cpt)", all_mode,    default=all_mode)
@@ -296,6 +379,10 @@ with st.sidebar:
         sel_sg = st.multiselect("Tamaño de Generación", all_sg, default=all_sg)
     else:
         sel_sg = None
+    if all_mmu:
+        sel_mmu = st.multiselect("Min/Max Utilidad fijado", all_mmu, default=all_mmu)
+    else:
+        sel_mmu = None
 
     st.divider()
     st.subheader("📊 Explorador de Variables")
@@ -332,6 +419,10 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     if sel_sg is not None and "size_gen" in df.columns:
         sg_num = pd.to_numeric(df["size_gen"], errors="coerce")
         mask &= sg_num.isna() | sg_num.isin(sel_sg)
+    # min_max_ut: solo lo tiene el estudio minmax; el resto de filas pasan.
+    if sel_mmu is not None and "min_max_ut" in df.columns:
+        mmu = df["min_max_ut"]
+        mask &= mmu.isna() | mmu.isin(sel_mmu)
     return df[mask].copy()
 
 
@@ -549,7 +640,7 @@ with tab_results:
 
         ordered_cols = [
             "model", "mode", "sampling_mode", "fitness_type", "stop_mode", "n_decision_rules_pct",
-            "chance_temperature", "utility_temperature", "size_gen",
+            "min_max_ut", "chance_temperature", "utility_temperature", "size_gen",
             "accuracy_mean", "accuracy_std", "accuracy_min", "accuracy_max",
             "mse_chance_mean", "mse_chance_std",
             "mse_utility_mean", "mse_utility_std",
@@ -563,7 +654,11 @@ with tab_results:
         show_cols = [c for c in ordered_cols if c in df_r.columns]
         table = df_r[show_cols].sort_values(
             ["accuracy_mean", "model"], ascending=[False, True]
-        )
+        ).copy()
+        if "min_max_ut" in table.columns:
+            table["min_max_ut"] = (
+                table["min_max_ut"].map({True: "Sí", False: "No"}).fillna("—")
+            )
 
         st.dataframe(
             table,
@@ -576,6 +671,7 @@ with tab_results:
                 "fitness_type":        st.column_config.TextColumn("Fitness"),
                 "stop_mode":           st.column_config.TextColumn("Stop Mode"),
                 "n_decision_rules_pct":st.column_config.NumberColumn("% Reglas",       format="%.0f %%"),
+                "min_max_ut":          st.column_config.TextColumn("Min/Max Ut"),
                 "chance_temperature":  st.column_config.NumberColumn("T softmax",      format="%.2f"),
                 "utility_temperature": st.column_config.NumberColumn("T sigmoid",      format="%.2f"),
                 "size_gen":            st.column_config.NumberColumn("Tamaño Gen.",    format="%.0f"),
