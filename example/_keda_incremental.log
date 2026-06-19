@@ -1,0 +1,525 @@
+C:\Users\sergi\AppData\Local\Programs\Python\Python313\Lib\site-packages\pgmpy\estimators\__init__.py:4: FutureWarning: `pgmpy.estimators.StructureScore` is deprecated and will be removed in a future release. Use `pgmpy.structure_score` instead.
+  from .StructureScore import (
+Plan: 200 corridas (49 pendientes, 151 hechas)
+Filas en CSV previo: 47432
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+IT:  51 	Best cost:  0
+IT:  52 	Best cost:  0
+IT:  53 	Best cost:  0
+    !! bypass2/keda rep=0 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[1/49] bypass2/keda/binary rep=0: gens=0 reglas=0 eventos=0 mean_acc=nan%  (0.3min / ETA 14.0min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+IT:  51 	Best cost:  0
+IT:  52 	Best cost:  0
+IT:  53 	Best cost:  0
+IT:  54 	Best cost:  0
+IT:  55 	Best cost:  0
+IT:  56 	Best cost:  0
+IT:  57 	Best cost:  0
+IT:  58 	Best cost:  0
+IT:  59 	Best cost:  0
+IT:  60 	Best cost:  0
+IT:  61 	Best cost:  0
+IT:  62 	Best cost:  0
+IT:  63 	Best cost:  0
+    !! bypass2/keda rep=1 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[2/49] bypass2/keda/binary rep=1: gens=0 reglas=0 eventos=0 mean_acc=nan%  (0.7min / ETA 16.1min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+IT:  51 	Best cost:  0
+IT:  52 	Best cost:  0
+IT:  53 	Best cost:  0
+IT:  54 	Best cost:  0
+    !! bypass2/keda rep=2 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[3/49] bypass2/keda/binary rep=2: gens=0 reglas=0 eventos=0 mean_acc=nan%  (1.1min / ETA 17.5min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+IT:  51 	Best cost:  0
+    !! bypass2/keda rep=3 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[4/49] bypass2/keda/binary rep=3: gens=0 reglas=0 eventos=0 mean_acc=nan%  (1.5min / ETA 17.1min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+C:\Users\sergi\AppData\Local\Programs\Python\Python313\Lib\site-packages\scipy\stats\_kde.py:483: RuntimeWarning: covariance is not symmetric positive-semidefinite.
+  norm = transpose(random_state.multivariate_normal(
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+IT:  51 	Best cost:  0
+    !! bypass2/keda rep=4 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[5/49] bypass2/keda/binary rep=4: gens=0 reglas=0 eventos=0 mean_acc=nan%  (1.9min / ETA 16.6min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+    !! bypass2/keda rep=5 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[6/49] bypass2/keda/binary rep=5: gens=0 reglas=0 eventos=0 mean_acc=nan%  (2.2min / ETA 15.9min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+    !! bypass2/keda rep=6 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[7/49] bypass2/keda/binary rep=6: gens=0 reglas=0 eventos=0 mean_acc=nan%  (2.5min / ETA 15.3min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost:  0
+IT:  22 	Best cost:  0
+IT:  23 	Best cost:  0
+IT:  24 	Best cost:  0
+IT:  25 	Best cost:  0
+IT:  26 	Best cost:  0
+IT:  27 	Best cost:  0
+IT:  28 	Best cost:  0
+IT:  29 	Best cost:  0
+IT:  30 	Best cost:  0
+IT:  31 	Best cost:  0
+IT:  32 	Best cost:  0
+IT:  33 	Best cost:  0
+IT:  34 	Best cost:  0
+IT:  35 	Best cost:  0
+IT:  36 	Best cost:  0
+IT:  37 	Best cost:  0
+IT:  38 	Best cost:  0
+IT:  39 	Best cost:  0
+IT:  40 	Best cost:  0
+IT:  41 	Best cost:  0
+IT:  42 	Best cost:  0
+IT:  43 	Best cost:  0
+IT:  44 	Best cost:  0
+IT:  45 	Best cost:  0
+IT:  46 	Best cost:  0
+IT:  47 	Best cost:  0
+IT:  48 	Best cost:  0
+IT:  49 	Best cost:  0
+IT:  50 	Best cost:  0
+IT:  51 	Best cost:  0
+IT:  52 	Best cost:  0
+IT:  53 	Best cost:  0
+IT:  54 	Best cost:  0
+IT:  55 	Best cost:  0
+IT:  56 	Best cost:  0
+IT:  57 	Best cost:  0
+    !! bypass2/keda rep=7 ABORT: LinAlgError: The data appears to lie in a lower-dimensional subspace of the space in which it is expressed. This has resulted in a singular data covariance matrix, which cannot be treated using the algorithms implemented in `gaussian_kde`. Consider performing principal component analysis / dimensionality reduction and using `gaussian_kde` with the transformed data.
+[8/49] bypass2/keda/binary rep=7: gens=0 reglas=0 eventos=0 mean_acc=nan%  (2.9min / ETA 14.9min)
+Optimizador: KEDA
+Modo de Fitness: BINARY
+Reglas totales para evaluar precisión: 20
+Reglas usadas para entrenar (Fitness): 1
+Iniciando optimización...
+IT:  0 	Best cost:  0
+IT:  1 	Best cost:  0
+IT:  2 	Best cost:  0
+IT:  3 	Best cost:  0
+IT:  4 	Best cost:  0
+IT:  5 	Best cost:  0
+IT:  6 	Best cost:  0
+IT:  7 	Best cost:  0
+IT:  8 	Best cost:  0
+IT:  9 	Best cost:  0
+IT:  10 	Best cost:  0
+IT:  11 	Best cost:  0
+IT:  12 	Best cost:  0
+IT:  13 	Best cost:  0
+IT:  14 	Best cost:  0
+IT:  15 	Best cost:  0
+IT:  16 	Best cost:  0
+IT:  17 	Best cost:  0
+IT:  18 	Best cost:  0
+IT:  19 	Best cost:  0
+IT:  20 	Best cost:  0
+IT:  21 	Best cost: 

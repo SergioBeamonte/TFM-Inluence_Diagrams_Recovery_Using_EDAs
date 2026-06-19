@@ -28,11 +28,12 @@ NETS = {
         'rules_csv': r'example\bypass2\reglas_generadas.csv',
         'mode': 'both',
     },
-    'nhlv1': {
-        'xdsl_path': r'example\nhlv1\network-nhlv1.xdsl',
-        'rules_csv': r'example\nhlv1\reglas_generadas.csv',
-        'mode': 'utility_only',
-    },
+    # nhlv1 descartado: tardaba demasiado. Solo corremos bypass2.
+    # 'nhlv1': {
+    #     'xdsl_path': r'example\nhlv1\network-nhlv1.xdsl',
+    #     'rules_csv': r'example\nhlv1\reglas_generadas.csv',
+    #     'mode': 'utility_only',
+    # },
 }
 
 OPTIMIZERS = ['umda', 'emna', 'egna', 'keda']
@@ -117,6 +118,7 @@ def run_one(net_name, optimizer, fitness_type, rep, seed):
             'n_train_rules':  int(h['n_train_rules']),
             'rule_added_after_gen': bool(h.get('rule_added_after_gen', False)),
             'max_accuracy':   float(np.max(accs)),
+            'n_rules_correct': int(round(np.max(accs) / 100.0 * total_rules)),
             'mean_accuracy':  float(np.mean(accs)),
             'pct_success_indv': float(np.sum(accs >= 99.999) / len(accs) * 100.0),
             'gen_cpu_time':   float(h.get('gen_cpu_time', float('nan'))),

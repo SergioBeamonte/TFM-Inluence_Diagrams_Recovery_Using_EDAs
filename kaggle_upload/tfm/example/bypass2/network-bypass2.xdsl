@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This network was created in GeNIe Academic, which can be used for academic teaching and research purposes only -->
+<smile version="1.0" id="bypass2" numsamples="1000" discsamples="10000">
+	<nodes>
+		<cpt id="HEARTDISEASE">
+			<state id="ABSENT" />
+			<state id="PRESENT" />
+			<probabilities>0.86 0.14</probabilities>
+		</cpt>
+		<cpt id="PAIN">
+			<state id="ABSENT" />
+			<state id="PRESENT" />
+			<parents>HEARTDISEASE</parents>
+			<probabilities>0.8 0.2 0.2 0.8</probabilities>
+		</cpt>
+		<cpt id="ANGIOGRAM">
+			<state id="NEGATIVE" />
+			<state id="POSITIVE" />
+			<parents>HEARTDISEASE</parents>
+			<probabilities>0.95 0.05 0.14 0.86</probabilities>
+		</cpt>
+		<decision id="HEARTSURGERY">
+			<state id="NO" />
+			<state id="YES" />
+			<parents>PAIN ANGIOGRAM</parents>
+		</decision>
+		<cpt id="EARLYRESULTS">
+			<state id="CoRem" />
+			<state id="PaRem" />
+			<state id="NoChng" />
+			<state id="PrgrsvDisease" />
+			<parents>ANGIOGRAM HEARTSURGERY</parents>
+			<probabilities>0.97 0.01 0.01 0.01 0.95 0.03 0.01 0.01 0.01 0.04 0.1 0.8 0.55 0.2 0.15 0.1</probabilities>
+		</cpt>
+		<decision id="HEARTPHARMA">
+			<state id="NO" />
+			<state id="YES" />
+			<parents>PAIN ANGIOGRAM EARLYRESULTS</parents>
+		</decision>
+		<cpt id="LIFEQ">
+			<state id="DEAD" />
+			<state id="LIVE2ALQ" />
+			<state id="LIVE2AHQ" />
+			<parents>HEARTDISEASE HEARTSURGERY</parents>
+			<probabilities>0.01 0.08 0.91 0.05 0.65 0.3 0.45 0.4 0.15 0.2 0.2 0.6</probabilities>
+		</cpt>
+		<cpt id="ECONOMICALC">
+			<state id="LOW" />
+			<state id="MEDIUM" />
+			<state id="HIGH" />
+			<parents>EARLYRESULTS HEARTSURGERY HEARTPHARMA</parents>
+			<probabilities>0.9 0.05 0.05 0.8 0.1 0.1 0.5 0.25 0.25 0.45 0.25 0.3 0.85 0.1 0.05 0.95 0.03 0.02 0.45 0.3 0.25 0.4 0.3 0.3 0.8 0.1 0.1 0.9 0.05 0.05 0.4 0.35 0.25 0.35 0.3 0.35 0.75 0.1 0.15 0.85 0.1 0.05 0.35 0.35 0.3 0.3 0.35 0.35</probabilities>
+		</cpt>
+		<utility id="UTILITY">
+			<parents>LIFEQ ECONOMICALC</parents>
+			<utilities>2 0.7 0.05 3.1 2.9 2.8 7.8 4.8 2.8</utilities>
+		</utility>
+	</nodes>
+	<extensions>
+		<genie version="1.0" app="GeNIe 5.0.5310.0 ACADEMIC" name="bypass2">
+			<node id="PAIN">
+				<name>PAIN</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>1545 160 1643 241</position>
+			</node>
+			<node id="ANGIOGRAM">
+				<name>ANGIOGRAM</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>669 81 943 165</position>
+			</node>
+			<node id="HEARTDISEASE">
+				<name>HEARTDISEASE</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>1192 4 1420 91</position>
+			</node>
+			<node id="HEARTSURGERY">
+				<name>HEARTSURGERY</name>
+				<interior color="ffcc99" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>138 426 426 507</position>
+			</node>
+			<node id="EARLYRESULTS">
+				<name>EARLYRESULTS</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>168 223 469 320</position>
+			</node>
+			<node id="HEARTPHARMA">
+				<name>HEARTPHARMA</name>
+				<interior color="ffcc99" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>1067 456 1383 552</position>
+			</node>
+			<node id="LIFEQ">
+				<name>LIFEQ</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>414 614 505 700</position>
+			</node>
+			<node id="ECONOMICALC">
+				<name>ECONOMICALC</name>
+				<interior color="ccffff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>837 615 1096 713</position>
+			</node>
+			<node id="UTILITY">
+				<name>UTILITY</name>
+				<interior color="cc99ff" />
+				<outline color="000080" />
+				<font color="000000" name="Arial" size="14" />
+				<position>633 829 919 917</position>
+			</node>
+		</genie>
+	</extensions>
+</smile>

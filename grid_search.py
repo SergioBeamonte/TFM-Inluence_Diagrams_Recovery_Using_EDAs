@@ -18,6 +18,7 @@ import sys
 import csv
 import time
 import itertools
+import multiprocessing as mp
 import numpy as np
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -292,29 +293,114 @@ def append_curves_rows(filepath, rows):
 #  MAIN
 # ═══════════════════════════════════════════════════════════════════════════════
 
+ALL_OPTIMIZERS = ['umda', 'egna', 'emna', 'keda']
+
+
+class _PrefixWriter:
+    """Antepone un prefijo (p.ej. '[UMDA] ') a cada línea escrita en el stream.
+
+    Se usa para que la salida de los procesos paralelos (uno por optimizador)
+    sea legible aunque se entrelace en el mismo stdout del notebook.
+    """
+    def __init__(self, prefix, stream):
+        self._prefix = prefix
+        self._stream = stream
+        self._line_start = True
+
+    def write(self, text):
+        if not text:
+            return 0
+        parts = text.split('\n')
+        out = []
+        for i, segment in enumerate(parts):
+            has_newline = i < len(parts) - 1
+            if segment and self._line_start:
+                out.append(self._prefix)
+                self._line_start = False
+            out.append(segment)
+            if has_newline:
+                out.append('\n')
+                self._line_start = True
+        self._stream.write(''.join(out))
+        return len(text)
+
+    def flush(self):
+        self._stream.flush()
+
+
+def _worker(effective_config, base_folder):
+    """Punto de entrada de cada proceso hijo: prefija stdout y corre el grid."""
+    tag = f"[{effective_config['optimizer_type'].upper()}] "
+    sys.stdout = _PrefixWriter(tag, sys.stdout)
+    run_grid_for_optimizer(effective_config, base_folder)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Grid Search sistemático para IDRecovery.')
     parser.add_argument('--xdsl_path', default=None, help='Ruta al fichero .xdsl')
     parser.add_argument('--rules_csv', default=None, help='Ruta al CSV de reglas')
     parser.add_argument('--min_max_ut', type=lambda x: x.lower() not in ('false', '0', 'no'),
                         default=None, help='Normalizar utilidades (True/False)')
-    parser.add_argument('--optimizer_type', default=None, help='Tipo de optimizador')
+    parser.add_argument('--optimizer_type', default=None,
+                        help="Optimizador(es): un nombre (umda), una lista "
+                             "(umda,egna) o 'all' para los 4 en paralelo.")
     parser.add_argument('--base_folder', default=None,
                         help='Carpeta donde escribir los CSVs (default: BASE_FOLDER del script)')
     args = parser.parse_args()
 
     # Construir config efectiva: valores del script como base, args sobreescriben si se pasan
-    effective_config = dict(BASE_CONFIG)
+    base_effective_config = dict(BASE_CONFIG)
     if args.xdsl_path is not None:
-        effective_config['xdsl_path'] = args.xdsl_path
+        base_effective_config['xdsl_path'] = args.xdsl_path
     if args.rules_csv is not None:
-        effective_config['rules_csv'] = args.rules_csv
+        base_effective_config['rules_csv'] = args.rules_csv
     if args.min_max_ut is not None:
-        effective_config['min_max_ut'] = args.min_max_ut
-    if args.optimizer_type is not None:
-        effective_config['optimizer_type'] = args.optimizer_type
+        base_effective_config['min_max_ut'] = args.min_max_ut
 
     base_folder = args.base_folder if args.base_folder else BASE_FOLDER
+
+    # Resolver la lista de optimizadores a ejecutar.
+    opt_arg = (args.optimizer_type or base_effective_config['optimizer_type']).lower()
+    if opt_arg == 'all':
+        optimizers = list(ALL_OPTIMIZERS)
+    else:
+        optimizers = [o.strip() for o in opt_arg.split(',') if o.strip()]
+
+    # Un solo optimizador: ejecución directa (sin overhead de procesos).
+    if len(optimizers) == 1:
+        cfg = dict(base_effective_config)
+        cfg['optimizer_type'] = optimizers[0]
+        run_grid_for_optimizer(cfg, base_folder)
+        return
+
+    # Varios optimizadores: un proceso por optimizador, en paralelo. Cada uno
+    # escribe en CSVs distintos (sufijo por optimizador), así que no hay choque.
+    print("=" * 70)
+    print(f"  GRID SEARCH — {len(optimizers)} optimizadores EN PARALELO: "
+          f"{', '.join(o.upper() for o in optimizers)}")
+    print("=" * 70, flush=True)
+
+    procs = []
+    for opt in optimizers:
+        cfg = dict(base_effective_config)
+        cfg['optimizer_type'] = opt
+        p = mp.Process(target=_worker, args=(cfg, base_folder), name=opt.upper())
+        p.start()
+        procs.append(p)
+
+    for p in procs:
+        p.join()
+
+    failed = [p.name for p in procs if p.exitcode != 0]
+    print("\n" + "=" * 70)
+    if failed:
+        print(f"  TERMINADO con fallos en: {', '.join(failed)}")
+    else:
+        print("  TODOS LOS OPTIMIZADORES TERMINARON OK")
+    print("=" * 70)
+
+
+def run_grid_for_optimizer(effective_config, base_folder):
     effective_rules_csv = effective_config['rules_csv']
     suffix = f"_{effective_config['optimizer_type'].upper()}"
     results_csv = os.path.join(base_folder, f"grid_search_results{suffix}.csv")

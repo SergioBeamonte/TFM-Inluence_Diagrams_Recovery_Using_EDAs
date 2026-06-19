@@ -1,0 +1,103 @@
+TABLAS DE UTILIDAD ESPERADA POR NODO DE DECISIÓN
+============================================================
+
+--- NODO DE DECISIÓN: CTRTSCHEDULE ---
+  # | SURGERY      ||         NONERadioTherapyChemoTherapyChemoTherapy_NEXT_RadioTherapy
+----------------------------------------------------------------------
+  1 | NONE         || *     0.1522      0.1365      0.1178      0.0746
+  2 | CURATIVE     || *     0.2329      0.2305      0.1805      0.1380
+  3 | PALLIATIVE   ||       0.1200*     0.3116      0.3015      0.2618
+
+============================================================
+
+--- NODO DE DECISIÓN: HELICOBACTERTREATMENT ---
+  # | HELICOBACTERPYLORI | CLINICALSTAGE | HISTOLOGICALCLASSIFICATION | BULKYDISEASE   ||           NO         YES
+------------------------------------------------------------------------------------------------------------------
+  1 | ABSENT | I | LOW_GRADE | YES                                                     || *     0.2677      0.2577
+  2 | ABSENT | I | LOW_GRADE | NO                                                      || *     0.2720      0.2620
+  3 | ABSENT | I | HIGH_GRADE | YES                                                    || *     0.2644      0.2577
+  4 | ABSENT | I | HIGH_GRADE | NO                                                     || *     0.2695      0.2620
+  5 | ABSENT | II1 | LOW_GRADE | YES                                                   || *     0.2431      0.2331
+  6 | ABSENT | II1 | LOW_GRADE | NO                                                    || *     0.2586      0.2486
+  7 | ABSENT | II1 | HIGH_GRADE | YES                                                  || *     0.2426      0.2331
+  8 | ABSENT | II1 | HIGH_GRADE | NO                                                   || *     0.2583      0.2486
+  9 | ABSENT | II2 | LOW_GRADE | YES                                                   || *     0.2542      0.2442
+ 10 | ABSENT | II2 | LOW_GRADE | NO                                                    || *     0.2667      0.2567
+ 11 | ABSENT | II2 | HIGH_GRADE | YES                                                  || *     0.2534      0.2442
+ 12 | ABSENT | II2 | HIGH_GRADE | NO                                                   || *     0.2653      0.2567
+ 13 | ABSENT | III | LOW_GRADE | YES                                                   || *     0.2318      0.2218
+ 14 | ABSENT | III | LOW_GRADE | NO                                                    || *     0.2436      0.2336
+ 15 | ABSENT | III | HIGH_GRADE | YES                                                  || *     0.2316      0.2218
+ 16 | ABSENT | III | HIGH_GRADE | NO                                                   || *     0.2434      0.2336
+ 17 | ABSENT | IV | LOW_GRADE | YES                                                    || *     0.2257      0.2157
+ 18 | ABSENT | IV | LOW_GRADE | NO                                                     || *     0.2404      0.2304
+ 19 | ABSENT | IV | HIGH_GRADE | YES                                                   || *     0.2251      0.2157
+ 20 | ABSENT | IV | HIGH_GRADE | NO                                                    || *     0.2399      0.2304
+ 21 | PRESENT | I | LOW_GRADE | YES                                                    || *     0.2139      0.2039
+ 22 | PRESENT | I | LOW_GRADE | NO                                                     || *     0.2281      0.2181
+ 23 | PRESENT | I | HIGH_GRADE | YES                                                   || *     0.2138      0.2039
+ 24 | PRESENT | I | HIGH_GRADE | NO                                                    || *     0.2279      0.2181
+ 25 | PRESENT | II1 | LOW_GRADE | YES                                                  || *     0.1964      0.1864
+ 26 | PRESENT | II1 | LOW_GRADE | NO                                                   || *     0.2053      0.1953
+ 27 | PRESENT | II1 | HIGH_GRADE | YES                                                 || *     0.1961      0.1864
+ 28 | PRESENT | II1 | HIGH_GRADE | NO                                                  || *     0.2055      0.1953
+ 29 | PRESENT | II2 | LOW_GRADE | YES                                                  || *     0.1966      0.1866
+ 30 | PRESENT | II2 | LOW_GRADE | NO                                                   || *     0.2072      0.1972
+ 31 | PRESENT | II2 | HIGH_GRADE | YES                                                 || *     0.1965      0.1866
+ 32 | PRESENT | II2 | HIGH_GRADE | NO                                                  || *     0.2072      0.1972
+ 33 | PRESENT | III | LOW_GRADE | YES                                                  || *     0.2135      0.2035
+ 34 | PRESENT | III | LOW_GRADE | NO                                                   || *     0.2328      0.2228
+ 35 | PRESENT | III | HIGH_GRADE | YES                                                 || *     0.2127      0.2035
+ 36 | PRESENT | III | HIGH_GRADE | NO                                                  || *     0.2321      0.2228
+ 37 | PRESENT | IV | LOW_GRADE | YES                                                   || *     0.2136      0.2036
+ 38 | PRESENT | IV | LOW_GRADE | NO                                                    || *     0.2277      0.2177
+ 39 | PRESENT | IV | HIGH_GRADE | YES                                                  || *     0.2136      0.2036
+ 40 | PRESENT | IV | HIGH_GRADE | NO                                                   || *     0.2276      0.2177
+
+============================================================
+
+--- NODO DE DECISIÓN: SURGERY ---
+  # | GENERALHEALTHSTATUS | CLINICALPRESENTATION | HELICOBACTERTREATMENT   ||         NONE    CURATIVE  PALLIATIVE
+------------------------------------------------------------------------------------------------------------------
+  1 | POOR | NONE | NO                                                     ||       0.1522      0.2329*     0.3116
+  2 | POOR | NONE | YES                                                    ||       0.1823      0.1926*     0.2221
+  3 | POOR | HEMORRHAGE | NO                                               || *     0.2522      0.2330      0.2055
+  4 | POOR | HEMORRHAGE | YES                                              ||       0.2621      0.1334*     0.4243
+  5 | POOR | PERFORATION | NO                                              ||       0.2386*     0.3730      0.2799
+  6 | POOR | PERFORATION | YES                                             || *     0.2802      0.2330      0.2646
+  7 | POOR | OBSTRUCTION | NO                                              || *     0.6640      0.4137      0.4243
+  8 | POOR | OBSTRUCTION | YES                                             || *     0.6481      0.2828      0.3089
+  9 | AVERAGE | NONE | NO                                                  || *     0.6667      0.2330      0.3236
+ 10 | AVERAGE | NONE | YES                                                 || *     0.3170      0.2630      0.3116
+ 11 | AVERAGE | HEMORRHAGE | NO                                            || *     0.2386      0.1926      0.2221
+ 12 | AVERAGE | HEMORRHAGE | YES                                           || *     0.2634      0.2027      0.2174
+ 13 | AVERAGE | PERFORATION | NO                                           ||       0.1422      0.2229*     0.3016
+ 14 | AVERAGE | PERFORATION | YES                                          ||       0.1723      0.1826*     0.2121
+ 15 | AVERAGE | OBSTRUCTION | NO                                           || *     0.2422      0.2230      0.1955
+ 16 | AVERAGE | OBSTRUCTION | YES                                          ||       0.2521      0.1234*     0.4143
+ 17 | GOOD | NONE | NO                                                     ||       0.2286*     0.3630      0.2699
+ 18 | GOOD | NONE | YES                                                    || *     0.2702      0.2230      0.2546
+ 19 | GOOD | HEMORRHAGE | NO                                               || *     0.6540      0.4037      0.4143
+ 20 | GOOD | HEMORRHAGE | YES                                              || *     0.6381      0.2728      0.2989
+ 21 | GOOD | PERFORATION | NO                                              || *     0.6567      0.2230      0.3136
+ 22 | GOOD | PERFORATION | YES                                             || *     0.3070      0.2530      0.3016
+ 23 | GOOD | OBSTRUCTION | NO                                              || *     0.2286      0.1826      0.2121
+ 24 | GOOD | OBSTRUCTION | YES                                             || *     0.2534      0.1927      0.2074
+
+============================================================
+
+============================================================
+EXTREMOS GLOBALES ABSOLUTOS DE TODA LA RED
+============================================================
+
+[+] MÁXIMO ABSOLUTO: 0.6667
+    - Nodo de Decisión: SURGERY (Acción: NONE)
+    - Nodos Condicionantes (Padres):
+        * GENERALHEALTHSTATUS: AVERAGE
+        * CLINICALPRESENTATION: NONE
+        * HELICOBACTERTREATMENT: NO
+
+[-] MÍNIMO ABSOLUTO: 0.0746
+    - Nodo de Decisión: CTRTSCHEDULE (Acción: ChemoTherapy_NEXT_RadioTherapy)
+    - Nodos Condicionantes (Padres):
+        * SURGERY: NONE

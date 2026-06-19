@@ -1,0 +1,4 @@
+C:\Users\sergi\AppData\Local\Programs\Python\Python313\Lib\site-packages\pgmpy\estimators\__init__.py:4: FutureWarning: `pgmpy.estimators.StructureScore` is deprecated and will be removed in a future release. Use `pgmpy.structure_score` instead.
+  from .StructureScore import (
+C:\Users\sergi\AppData\Local\Programs\Python\Python313\Lib\site-packages\scipy\stats\_kde.py:483: RuntimeWarning: covariance is not symmetric positive-semidefinite.
+  norm = transpose(random_state.multivariate_normal(
