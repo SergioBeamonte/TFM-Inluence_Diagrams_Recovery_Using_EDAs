@@ -515,6 +515,29 @@ with tab_results:
             _tooltip = [alt.Tooltip(f"{c}:{_et(c)}", title=c) for c in all_sel]
             _base = alt.Chart(df_r)
 
+            def _bar_y_scale(agg, col, cats):
+                """Slider para acercar el eje Y de las barras (no arrancar en 0).
+                Por defecto se ajusta al rango de los datos para que diferencias
+                pequeñas (p.ej. 98 vs 100) se aprecien."""
+                vals = pd.to_numeric(agg[col], errors="coerce").dropna()
+                if vals.empty:
+                    return alt.Scale(zero=False)
+                dmin, dmax = float(vals.min()), float(vals.max())
+                span = dmax - dmin
+                pad = span * 0.1 if span > 0 else (abs(dmax) * 0.05 or 1.0)
+                lo_bound = round(min(0.0, dmin - pad), 4)
+                hi_bound = round(dmax + pad, 4)
+                default_lo = round(max(lo_bound, dmin - pad), 4)
+                if lo_bound >= hi_bound:  # datos constantes degenerados
+                    return alt.Scale(zero=False)
+                lo, hi = st.slider(
+                    f"Rango eje Y — {col}",
+                    min_value=float(lo_bound), max_value=float(hi_bound),
+                    value=(float(default_lo), float(hi_bound)),
+                    key=f"yzoom_{col}_{'_'.join(cats)}_{lo_bound}_{hi_bound}",
+                )
+                return alt.Scale(domain=[lo, hi])
+
             # ── BOXPLOT ──────────────────────────────────────────────────────
             if _chart_type == "Boxplot":
                 if n_cat != 1:
@@ -591,13 +614,14 @@ with tab_results:
 
             elif n_num == 1 and n_cat == 1:
                 _agg = df_r.groupby(sel_exp_cat[0], as_index=False)[sel_exp_num[0]].mean()
+                _yscale = _bar_y_scale(_agg, sel_exp_num[0], sel_exp_cat)
                 _exp_chart = (
                     alt.Chart(_agg)
                     .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
                     .encode(
                         x=alt.X(f"{sel_exp_cat[0]}:N", title=sel_exp_cat[0], sort="-y"),
                         y=alt.Y(f"{sel_exp_num[0]}:Q", title=f"Media — {sel_exp_num[0]}",
-                                scale=alt.Scale(zero=False)),
+                                scale=_yscale),
                         color=alt.Color(f"{sel_exp_cat[0]}:N", title=sel_exp_cat[0],
                                         scale=MODEL_COLORS, legend=None),
                         tooltip=[
@@ -610,13 +634,14 @@ with tab_results:
 
             elif n_num == 1 and n_cat == 2:
                 _agg = df_r.groupby(sel_exp_cat, as_index=False)[sel_exp_num[0]].mean()
+                _yscale = _bar_y_scale(_agg, sel_exp_num[0], sel_exp_cat)
                 _exp_chart = (
                     alt.Chart(_agg)
                     .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
                     .encode(
                         x=alt.X(f"{sel_exp_cat[0]}:N", title=sel_exp_cat[0], sort="-y"),
                         y=alt.Y(f"{sel_exp_num[0]}:Q", title=f"Media — {sel_exp_num[0]}",
-                                scale=alt.Scale(zero=False)),
+                                scale=_yscale),
                         color=alt.Color(f"{sel_exp_cat[1]}:N", title=sel_exp_cat[1], scale=MODEL_COLORS),
                         xOffset=f"{sel_exp_cat[1]}:N",
                         tooltip=[
