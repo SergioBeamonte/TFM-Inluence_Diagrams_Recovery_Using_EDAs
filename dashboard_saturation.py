@@ -46,11 +46,25 @@ selected_fit = st.sidebar.multiselect("Función Fitness", fitness_types, default
 reps = ["Todas (Promedio)"] + sorted(df["rep"].unique().tolist())
 selected_rep = st.sidebar.selectbox("Repetición (Seed)", reps)
 
+# Eje X configurable. Como las reglas se añaden al estancarse, mirar el eje X
+# por "nº de reglas de training" muestra hasta dónde se llega con cada nº de reglas.
+x_options = {
+    "Generación": "gen",
+    "Nº reglas de training (pool)": "n_train_rules",
+    "Nº reglas cumplidas": "n_rules_correct",
+}
+x_label = st.sidebar.selectbox("Eje X", list(x_options.keys()))
+x_col = x_options[x_label]
+
 # Métrica del eje Y. n_train_rules (reglas en el pool) es la curva de saturación.
 metrics = ["n_train_rules", "max_accuracy", "mean_accuracy",
            "pct_success_indv", "n_rules_correct", "gen_cpu_time"]
 metrics = [m for m in metrics if m in df.columns]
-selected_metric = st.sidebar.selectbox("Métrica Eje Y", metrics, index=0)
+# Si el eje X ya usa una métrica, no tiene sentido repetirla en Y: por defecto
+# proponemos n_rules_correct cuando X = nº de reglas de training.
+_default_y = "n_rules_correct" if x_col == "n_train_rules" and "n_rules_correct" in metrics else metrics[0]
+selected_metric = st.sidebar.selectbox(
+    "Métrica Eje Y", metrics, index=metrics.index(_default_y))
 
 # Característica por la que agrupar/colorear las curvas.
 color_options = {
@@ -78,33 +92,49 @@ if base_df.empty:
     st.warning("No hay datos para la combinación seleccionada.")
     st.stop()
 
-# Datos para las curvas: una repetición concreta o el promedio sobre todas.
-if selected_rep != "Todas (Promedio)":
-    filtered_df = base_df[base_df["rep"] == selected_rep].copy()
-else:
-    groupby_cols = ["net", "optimizer", "fitness_type", "mode", "gen"]
-    avg_df = base_df.groupby(groupby_cols).agg({
-        selected_metric: "mean",
-        "n_train_rules": "max",
-    }).reset_index()
-    # Marca una generación como "nueva regla" si cualquier repetición la añadió ahí.
-    events_df = base_df.groupby(groupby_cols)["rule_added_after_gen"].sum().reset_index()
-    events_df["rule_added_after_gen"] = events_df["rule_added_after_gen"] > 0
-    filtered_df = pd.merge(avg_df, events_df, on=groupby_cols)
+# Datos para las curvas. El eje X determina cómo se agregan las generaciones:
+#  - gen: una fila por generación (promedio entre reps o una rep concreta).
+#  - n_train_rules / n_rules_correct: se colapsan las generaciones quedándonos
+#    con el PICO de la métrica Y para cada valor de X (hasta dónde se llega con
+#    cada nº de reglas), y luego se promedia entre repeticiones.
+id_cols = ["net", "optimizer", "fitness_type", "mode"]
 
+if x_col == "gen":
+    if selected_rep != "Todas (Promedio)":
+        filtered_df = base_df[base_df["rep"] == selected_rep].copy()
+    else:
+        gb = id_cols + ["gen"]
+        avg_df = base_df.groupby(gb).agg({
+            selected_metric: "mean",
+            "n_train_rules": "max",
+        }).reset_index()
+        events_df = base_df.groupby(gb)["rule_added_after_gen"].sum().reset_index()
+        events_df["rule_added_after_gen"] = events_df["rule_added_after_gen"] > 0
+        filtered_df = pd.merge(avg_df, events_df, on=gb)
+else:
+    if selected_rep != "Todas (Promedio)":
+        sub = base_df[base_df["rep"] == selected_rep]
+        filtered_df = sub.groupby(id_cols + [x_col], as_index=False)[selected_metric].max()
+    else:
+        # primero el pico por repetición en cada valor de X, luego media entre reps
+        per_rep = base_df.groupby(id_cols + ["rep", x_col], as_index=False)[selected_metric].max()
+        filtered_df = per_rep.groupby(id_cols + [x_col], as_index=False)[selected_metric].mean()
+    filtered_df["rule_added_after_gen"] = False  # estrellas solo en la vista por generación
+
+filtered_df = filtered_df.sort_values(id_cols + [x_col])
 filtered_df["Experiment"] = (
     filtered_df["net"] + " - " + filtered_df["optimizer"] + " - "
     + filtered_df["fitness_type"] + " - " + filtered_df["mode"]
 )
 
 # ─── GRÁFICO DE CURVAS ──────────────────────────────────────────────────────────
-fig = px.line(filtered_df, x="gen", y=selected_metric, color=color_col, line_group="Experiment",
-              title=f"Evolución de {selected_metric} por Generación",
-              labels={"gen": "Generación (gen)", selected_metric: selected_metric},
-              markers=False)
+fig = px.line(filtered_df, x=x_col, y=selected_metric, color=color_col, line_group="Experiment",
+              title=f"{selected_metric} vs {x_label}",
+              labels={x_col: x_label, selected_metric: selected_metric},
+              markers=(x_col != "gen"))
 
 rule_added_df = filtered_df[filtered_df["rule_added_after_gen"] == True]
-if show_stars and not rule_added_df.empty:
+if show_stars and x_col == "gen" and not rule_added_df.empty:
     for exp in rule_added_df["Experiment"].unique():
         exp_df = rule_added_df[rule_added_df["Experiment"] == exp]
         fig.add_trace(go.Scatter(
