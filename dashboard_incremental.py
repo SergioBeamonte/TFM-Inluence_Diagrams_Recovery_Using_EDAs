@@ -50,6 +50,10 @@ color_options = {
 color_label = st.sidebar.selectbox("Colorear curvas por", list(color_options.keys()))
 color_col = color_options[color_label]
 
+# Estrellas = generaciones donde se añadió una regla. Se pueden ocultar para
+# ver mejor las curvas.
+show_stars = st.sidebar.checkbox("Mostrar estrellas (nuevas reglas)", value=True)
+
 # Filtrado básico
 filtered_df = df[
     (df['net'].isin(selected_nets)) &
@@ -98,7 +102,7 @@ fig = px.line(filtered_df, x='gen', y=selected_metric, color=color_col, line_gro
 # Añadir marcadores donde se añaden reglas (puntos gordos / estrellas)
 rule_added_df = filtered_df[filtered_df['rule_added_after_gen'] == True]
 
-if not rule_added_df.empty:
+if show_stars and not rule_added_df.empty:
     for exp in rule_added_df['Experiment'].unique():
         exp_df = rule_added_df[rule_added_df['Experiment'] == exp]
         fig.add_trace(go.Scatter(
