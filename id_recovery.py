@@ -71,7 +71,8 @@ class IDRecovery:
                  chance_temperature=1.0, utility_temperature=1.0,
                  mode='both', symmetric_sampling=False, random_seed=42,
                  incremental_rules=False, incremental_start_with=1,
-                 incremental_trigger='success', incremental_patience=5):
+                 incremental_trigger='success', incremental_patience=5,
+                 identifiable_chance=True):
 
         self.net = pysmile.Network()
         self.net.read_file(xdsl_path)
@@ -91,6 +92,13 @@ class IDRecovery:
         #            Útil cuando las CPTs son intermedias o quieres suavidad en utilidades.
         self.chance_temperature = float(chance_temperature)
         self.utility_temperature = float(utility_temperature)
+        # Parametrizacion identificable del softmax (POR DEFECTO True): cada fila
+        # de una CPT se optimiza con k-1 logits (el ultimo se fija a 0) en vez de k.
+        # Elimina la redundancia gauge (softmax invariante a sumar una constante por
+        # fila) que sobre-parametriza el vector y vuelve singular la covarianza de
+        # KEDA. Ningun modelo debe sobre-parametrizarse: dejarlo en True salvo que
+        # se quiera reproducir explicitamente el comportamiento antiguo (93 vars).
+        self.identifiable_chance = identifiable_chance
         # Modo de optimización (descompone el problema):
         #   'both'         → optimiza CPTs y utilidades a la vez (caso general).
         #   'utility_only' → fija las CPTs a sus valores originales y solo busca utilidades.
@@ -263,6 +271,17 @@ class IDRecovery:
                     fixed.append((worst_flat, self.u_min))
                     mask[worst_flat] = False
 
+            elif kind == 'chance' and self.identifiable_chance and size > 0:
+                # Parametrizacion identificable: fijamos a 0 el ULTIMO logit de cada
+                # fila del simplex (eje -1 = outcomes propios). softmax(logits) es
+                # invariante a sumar una constante por fila, asi que fijar uno no
+                # pierde expresividad pero elimina la redundancia gauge (k -> k-1).
+                mask_r = mask.reshape(shape)
+                mask_r[..., -1] = False
+                mask = mask_r.reshape(-1)
+                for flat_idx in np.where(~mask)[0]:
+                    fixed.append((int(flat_idx), 0.0))
+
             specs.append({'name': name, 'kind': kind, 'size': size, 'free_size': mask.sum(), 'shape': shape, 'mask': mask, 'fixed': fixed})
         return specs
 
@@ -302,8 +321,16 @@ class IDRecovery:
                         val[flat] = fv
                     probs = val.reshape(s['shape'])
                 else:
+                    # Reconstruimos el vector COMPLETO de logits: las entradas libres
+                    # vienen de raw (via mask) y las fijadas (gauge, =0) de 'fixed'.
+                    # Con identifiable_chance=False mask es todo True y fixed vacio,
+                    # por lo que full == raw reshape (comportamiento original intacto).
+                    full = np.zeros(s['size'])
+                    full[s['mask']] = raw
+                    for flat, fv in s['fixed']:
+                        full[flat] = fv
                     # softmax(raw / T). T<1 afila, T>1 estira hacia uniforme.
-                    raw_r = raw.reshape(s['shape']) / self.chance_temperature
+                    raw_r = full.reshape(s['shape']) / self.chance_temperature
                     res = np.exp(raw_r - raw_r.max(axis=-1, keepdims=True))
                     probs = res / res.sum(axis=-1, keepdims=True)
                     # epsilon-floor: evita probs exactamente 0 o 1.

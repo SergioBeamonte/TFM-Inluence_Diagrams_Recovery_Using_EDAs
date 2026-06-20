@@ -75,6 +75,8 @@ def run_one(net_name, optimizer, fitness_type, rep, seed):
         'incremental_rules':        True,
         'incremental_start_with':   1,
     })
+    # identifiable_chance usa el default de IDRecovery (True): ningun modelo se
+    # sobre-parametriza. KEDA pasa de 93 a 64 vars y evita la covarianza singular.
     exp = IDRecovery(**params)
     
     original_fitness = exp.fitness
