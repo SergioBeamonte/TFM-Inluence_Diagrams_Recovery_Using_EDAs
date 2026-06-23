@@ -582,9 +582,14 @@ class IDRecovery:
             return n_train_rules * (nll_esperado + margen_entropia)
         return self._external_target_fitness
 
-    def run(self, g=100, i=100, target_fitness=1e-5, patience=10, min_delta=1e-4):
+    def run(self, g=100, i=100, target_fitness=1e-5, patience=10, min_delta=1e-4,
+            init_population=None):
+        # init_population: si se da, es una población inicial (size_gen x n_variables)
+        # con la que arrancar el EDA en vez de la inicialización uniforme. Permite
+        # el "arranque en caliente" reusando la población final de otra corrida.
         self.size_gen = g
-        
+        self.final_population = None
+
         # --- INICIALIZAR VARIABLES DE ESTANCAMIENTO ---
         self.patience = patience
         self.min_delta = min_delta
@@ -627,6 +632,9 @@ class IDRecovery:
             'elite_factor': self.elite_factor,
             'disp': False
         }
+        # Arranque en caliente: EDAspy inicializa la 1ª generación desde init_data.
+        if init_population is not None:
+            optimizer_kwargs['init_data'] = np.asarray(init_population)
 
         if self.optimizer_type == 'umda':
             optimizer = UMDAc(**optimizer_kwargs)
@@ -661,6 +669,12 @@ class IDRecovery:
             print(f"\n¡PARADA ANTICIPADA! {e}")
             mejor_vector = self.best_historical_ind
             self.stagnation_counter = 0
+
+        # Población final del EDA: sirve como semilla para un arranque en caliente.
+        try:
+            self.final_population = np.asarray(optimizer.generation).copy()
+        except Exception:
+            self.final_population = None
 
         return mejor_vector
 
