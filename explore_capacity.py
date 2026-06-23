@@ -17,8 +17,9 @@ Dos metodos (misma secuencia de reglas, distinta inicializacion del EDA):
               (init_data de EDAspy). Hasta 30 generaciones por k. Mide si reusar
               lo aprendido con k-1 reglas acelera resolver con k.
 
-Salida: example/explore_capacity.csv (1 fila por metodo x optimizador x fitness x
-rep x k x generacion). Solo bypass2 (mode='both'), 4 EDAs x 5 fitness x 10 reps.
+Salida: example/explore_init_coldwarm.csv (1 fila por metodo x optimizador x
+fitness x rep x k x generacion). Solo bypass2 (mode='both'), 4 EDAs x 5 fitness
+x 10 reps. No sobreescribe el explore_capacity.csv antiguo.
 """
 import os
 import io
@@ -62,7 +63,7 @@ GLOBAL_FULL = 99.999    # un individuo "perfecto" recupera TODAS las reglas real
 BASE_SEED   = 42
 TARGET_FITNESS = 1e-5
 
-RAW_CSV = r'example\explore_capacity.csv'
+RAW_CSV = r'example\explore_init_coldwarm.csv'
 
 
 def _pct_full(accs):
