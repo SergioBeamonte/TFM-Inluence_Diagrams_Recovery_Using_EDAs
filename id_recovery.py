@@ -88,6 +88,7 @@ class IDRecovery:
                  fitness_type='regret', stop_mode='best', optimizer_type='umda',
                  chance_temperature=1.0, utility_temperature=1.0,
                  mode='both', symmetric_sampling=False, random_seed=42,
+                 rule_seed=None,
                  incremental_rules=False, incremental_start_with=1,
                  incremental_trigger='success', incremental_patience=5,
                  identifiable_chance=True, rule_noise=0.0):
@@ -174,8 +175,14 @@ class IDRecovery:
 
         # Sembramos tanto random (para el sampleo de reglas) como numpy.random (para la
         # inicialización y muestreo interno de EDAspy, que usa np.random globalmente).
+        # random_seed -> np.random (inicialización uniforme de la población + muestreo EDAspy).
+        # rule_seed   -> random     (qué subconjunto de reglas se muestrea, y el ruido de reglas).
+        # Al ser módulos PRNG independientes, separarlos permite medir por separado la
+        # varianza por CONJUNTO DE REGLAS y por SEMILLA DE INICIALIZACIÓN. Si rule_seed es
+        # None se usa random_seed → comportamiento idéntico al histórico (retrocompatible).
         self.random_seed = random_seed
-        random.seed(random_seed)
+        self.rule_seed = random_seed if rule_seed is None else int(rule_seed)
+        random.seed(self.rule_seed)
         np.random.seed(random_seed)
         n_all = len(self.all_rules)
         # --- MODO CURRICULUM (incremental_rules) ---
@@ -645,15 +652,11 @@ class IDRecovery:
             return n_train_rules * (nll_esperado + margen_entropia)
         return self._external_target_fitness
 
-<<<<<<< HEAD
-    def run(self, g=100, i=100, target_fitness=1e-5, patience=10, min_delta=1e-4, min_iter=1):
-=======
     def run(self, g=100, i=100, target_fitness=1e-5, patience=10, min_delta=1e-4,
-            init_population=None):
+            min_iter=1, init_population=None):
         # init_population: si se da, es una población inicial (size_gen x n_variables)
         # con la que arrancar el EDA en vez de la inicialización uniforme. Permite
         # el "arranque en caliente" reusando la población final de otra corrida.
->>>>>>> 774624d3fc6b67a9f5e9fda7e9e4527422031b48
         self.size_gen = g
         self.final_population = None
 
