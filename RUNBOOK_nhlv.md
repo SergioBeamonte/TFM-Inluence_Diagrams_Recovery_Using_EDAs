@@ -16,25 +16,36 @@ Diseño (Plan B): 3 conjuntos de reglas × 3 inits × 5 fitness × {UMDA, EMNA} 
 ETA ≈ 11–13 h. En `utility_only` las CPTs están fijas → **no hay MSE a
 probabilidades**, solo varianza de accuracy.
 
-## Prerrequisitos
+## Setup desde cero (equipo que "no tiene nada")
 
-1. **Mismo SO que la máquina principal (Windows).** Las rutas usan `\` y `pysmile`
-   se probó en Windows.
-2. **Traer el código actualizado:**
-   ```
-   git pull            # trae id_recovery.py (con rule_seed) y explore_variance_nhlv.py
-   ```
-   Nota: si esta copia también está dentro de OneDrive y da guerra al hacer pull,
-   clónala fresca FUERA de OneDrive:
-   `git clone https://github.com/SergioBeamonte/TFM.git`
-3. **Entorno Python** con:
-   - `pysmile` (SMILE/BayesFusion — **necesita su licencia**; es el punto más
-     probable de fallo si el equipo no la tiene)
-   - `EDAspy`, `pgmpy` (id_recovery importa EGNA/KEDA al cargar, aunque NHLv solo use
-     UMDA/EMNA, así que pgmpy debe estar instalado)
-   - `numpy`, `pandas`, `scipy`
-4. Ficheros de red ya versionados (llegan con el pull):
-   `example\nhlv1\network-nhlv1.xdsl`, `example\nhlv1\reglas_generadas.csv`.
+Requisito: **Windows 64-bit + Python 3.13** (para el wheel vendorizado de pysmile).
+Todo lo demás está en el repo (código, licencia de pysmile, ficheros de red, el
+propio wheel de pysmile).
+
+```
+git clone https://github.com/SergioBeamonte/TFM.git
+cd TFM
+python -m venv .venv && .venv\Scripts\activate        # recomendado (evitar líos de OneDrive)
+pip install -r requirements.txt
+pip install vendor\pysmile-2.4.0-cp313-cp313-win_amd64.whl
+```
+
+Comprobación de que el entorno está OK (debe imprimir `OK`):
+```
+python -c "import pysmile_license, pysmile; from EDAspy.optimization import UMDAc, EGNA, EMNA, UnivariateKEDA; print('OK')"
+```
+
+Todo lo necesario ya está versionado y llega con el clone:
+- `id_recovery.py` (con `rule_seed`), `explore_variance_nhlv.py`
+- `pysmile_license.py` (la clave), `vendor\pysmile-...whl` (el binario)
+- `example\nhlv1\network-nhlv1.xdsl`, `example\nhlv1\reglas_generadas.csv`
+
+Notas:
+- `pgmpy` es necesario aunque NHLv solo use UMDA/EMNA, porque `id_recovery` importa
+  EGNA/KEDA al cargar el módulo.
+- Si el equipo NO es Windows+Python3.13, el wheel vendorizado no sirve: hay que
+  instalar el `pysmile` de BayesFusion para esa plataforma (necesita licencia).
+- Si ya tenías el repo clonado, basta `git pull` en vez del clone.
 
 ## Ejecutar
 

@@ -1,0 +1,13 @@
+# Dependencias para la recuperación de Diagramas de Influencia mediante EDA.
+# Entorno de referencia: Windows 64-bit + Python 3.13.7.
+#
+# pysmile NO está en PyPI: se instala aparte desde el wheel vendorizado del repo
+#   pip install vendor/pysmile-2.4.0-cp313-cp313-win_amd64.whl
+# (ese wheel es cp313-win_amd64; si el equipo no es Windows+Python3.13 hará falta
+#  el pysmile correspondiente de BayesFusion).
+numpy==2.3.3
+pandas==2.3.3
+scipy==1.17.1
+psutil==7.1.3
+EDAspy==1.1.3
+pgmpy==1.1.0
