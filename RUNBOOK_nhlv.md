@@ -12,12 +12,15 @@ recuperación en NHLv (`utility_only`) según dos fuentes:
 - **la semilla de inicialización** del EDA (`random_seed`).
 
 Diseño: 3 tamaños de población (50, 100, 200) × 3 conjuntos de reglas × 3 inits ×
-5 fitness × {UMDA, EMNA} = **270 runs**, 10% de reglas (7 de 67), parada `top90`,
-`min_iter=1`, cap 40 gen. El coste por generación crece ~lineal con la población
-(~18 s/gen a pop=50), así que la barrida completa lleva **varios días** (pop=50
-≈ 11–13 h; 100 y 200 proporcionalmente más). Es reanudable run a run. En
-`utility_only` las CPTs están fijas → **no hay MSE a probabilidades**, solo
-varianza de accuracy.
+{UMDA, EMNA}. El fitness depende de la población para acotar coste: **pop=50 los 5
+fitness** (binary, margin, softmax, regret, entropy) y **pop=100/200 solo binary+
+regret** → 90 + 36 + 36 = **162 runs**. 10% de reglas (7 de 67), parada `top90`,
+`min_iter=1`, cap 40 gen. Se ejecuta en **paralelo** (`N_WORKERS=4` procesos, 1 hilo
+BLAS cada uno): resultados idénticos al secuencial, solo cambia el reloj de pared
+(la barrida completa baja de varios días a ~medio-un día). Es reanudable run a run.
+En `utility_only` las CPTs están fijas → **no hay MSE a probabilidades**, solo
+varianza de accuracy. Por run se guarda `cpu_total` (CPU-seconds) y `acc_mean`
+(accuracy media de la última generación), entre otras columnas.
 
 ## Setup desde cero (equipo que "no tiene nada")
 
