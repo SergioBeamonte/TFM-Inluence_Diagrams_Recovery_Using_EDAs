@@ -28,7 +28,7 @@ random initialization). Selectors let you pick any combination:
 
 | Axis | Values |
 |------|--------|
-| Optimizer | EMNA · UMDA · KEDA |
+| Optimizer | EMNA · UMDA |
 | Fitness | binary · regret · margin · softmax · entropy |
 | Rules elicited | 30% · 70% (of the 20 available) |
 | Temperature (utility, chance) | (1, 1) · (4, 1) · (8, 1)|
